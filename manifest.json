@@ -1,11 +1,10 @@
-
 {
   "name": "Brochure Stock Management System",
   "short_name": "Brochure Stock",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#F1E8CE",
-  "theme_color": "#4f46e5",
+  "background_color": "#F5F6FA",
+  "theme_color": "#3D4EDB",
   "icons": [
     {
       "src": "assets/icon_stock.png",
