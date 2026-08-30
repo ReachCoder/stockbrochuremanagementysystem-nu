@@ -1,0 +1,1343 @@
+<!DOCTYPE html>
+<html lang="km">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Brochure Stock Management</title>
+
+<!-- Khmer Font -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Moul&family=Kantumruy+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<!-- Font Awesome -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+
+<!-- App CSS -->
+<link rel="stylesheet" href="css/styles.css">
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#4f46e5">
+<link rel="apple-touch-icon" href="assets/icon_stock.png">
+<link rel="icon" type="image/png" href="assets/icon_stock.png">
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<!-- ExcelJS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+</head>
+
+<body>
+
+
+
+<!-- =====================================================
+     LOGIN SCREEN
+===================================================== -->
+<div class="login-screen" id="loginScreen">
+    <div class="login-card">
+        <div class="login-logo">
+            <img src="assets/icon_stock.png" alt="Logo">
+            <div>
+                <h1>Brochure Stock</h1>
+                <p>ប្រព័ន្ធគ្រប់គ្រងស្តុក</p>
+            </div>
+        </div>
+        <h2>ចូលប្រើប្រព័ន្ធ</h2>
+        <p class="login-hint">សូម Login ដើម្បីមើល និងគ្រប់គ្រងទិន្នន័យ</p>
+        <div class="login-err" id="loginErr"></div>
+        <div class="login-field">
+            <label>អ៊ីមែល</label>
+            <input type="email" id="loginEmail" placeholder="name@example.com" autocomplete="username">
+        </div>
+        <div class="login-field">
+            <label>ពាក្យសម្ងាត់</label>
+            <div class="password-wrap">
+                <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password">
+                <button type="button" class="password-toggle" id="btnTogglePassword" title="បង្ហាញ / លាក់ ពាក្យសម្ងាត់" aria-label="បង្ហាញពាក្យសម្ងាត់">
+                    <i class="fa-solid fa-eye" id="passwordToggleIcon"></i>
+                </button>
+            </div>
+        </div>
+        <div class="login-forgot-row">
+            <button type="button" class="login-forgot-btn" id="btnForgotPassword">ភ្លេចពាក្យសម្ងាត់?</button>
+        </div>
+        <button class="login-btn" id="btnLoginEmail" type="button">
+            <i class="fa-solid fa-right-to-bracket"></i> ចូលប្រើ (Email)
+        </button>
+        <div class="login-divider">ឬ</div>
+        <button class="login-btn google" id="btnLoginGoogle" type="button">
+            <i class="fa-brands fa-google"></i> ចូលជាមួយ Google
+        </button>
+    </div>
+</div>
+
+<div class="app auth-locked" id="appRoot">
+
+<div class="sidebar-backdrop" id="sidebarBackdrop" aria-hidden="true"></div>
+
+<!-- =====================================================
+     SIDEBAR
+===================================================== -->
+
+<aside class="sidebar" id="sidebar">
+
+    <div class="logo">
+        <img src="assets/icon-512.png" alt="Logo" class="app-logo-img">
+        <div class="logo-text">
+            Brochure Stock
+        </div>
+    </div>
+
+    <div class="menu">
+
+        <div class="menu-title">
+            MAIN MENU
+        </div>
+
+        <button class="menu-item active"
+                data-page="dashboard">
+
+            <i class="fa-solid fa-chart-pie"></i>
+
+            <span>Dashboard</span>
+
+        </button>
+
+
+        <button class="menu-item"
+                data-page="stock">
+
+            <i class="fa-solid fa-boxes-stacked"></i>
+
+            <span>ស្តុក Brochure</span>
+
+        </button>
+
+
+        <button class="menu-item"
+                data-page="stockout">
+            <i class="fa-solid fa-arrow-up-from-bracket"></i>
+            <span>Stock Out</span>
+            <span class="menu-badge" id="stockOutMenuBadge" style="display:none;">0</span>
+        </button>
+
+
+        <button class="menu-item admin-only"
+                data-page="stockin">
+            <i class="fa-solid fa-dolly"></i>
+            <span>Stock In</span>
+        </button>
+
+
+        <button class="menu-item"
+                data-page="departments">
+            <i class="fa-solid fa-building"></i>
+            <span>Department</span>
+        </button>
+
+
+        <button class="menu-item"
+                data-page="years">
+
+            <i class="fa-solid fa-calendar-days"></i>
+
+            <span>តាមឆ្នាំ</span>
+
+        </button>
+
+
+        <button class="menu-item"
+                data-page="reports">
+
+            <i class="fa-solid fa-file-lines"></i>
+
+            <span>របាយការណ៍</span>
+
+        </button>
+
+
+        <div class="menu-title">
+            SYSTEM
+        </div>
+
+
+        <button class="menu-item admin-only"
+                data-page="audit">
+
+            <i class="fa-solid fa-clipboard-list"></i>
+
+            <span>Audit Log</span>
+
+        </button>
+
+
+        <button class="menu-item"
+                data-page="settings">
+
+            <i class="fa-solid fa-gear"></i>
+
+            <span>ការកំណត់</span>
+
+        </button>
+
+    </div>
+
+
+    <div class="sidebar-footer">
+
+        Brochure Stock Management<br>
+
+        © 2026
+
+    </div>
+
+</aside>
+
+
+<!-- =====================================================
+     MAIN
+===================================================== -->
+
+<main class="main">
+
+<!-- TOP BAR -->
+
+<header class="topbar">
+
+    <div class="page-title">
+
+        <button class="mobile-menu" id="mobileMenu">
+
+            <i class="fa-solid fa-bars"></i>
+
+        </button>
+
+        <div>
+
+            <h2 id="pageTitle">
+                Dashboard
+            </h2>
+
+            <span>
+                ប្រព័ន្ធគ្រប់គ្រងស្តុក Brochure
+            </span>
+
+        </div>
+
+    </div>
+
+
+    <div class="top-actions">
+
+        <div class="user-chip" id="userChip" title="អ្នកកំពុងប្រើ">
+            <div>
+                <strong id="userChipName">—</strong>
+                <small><span class="role-badge" id="userRoleBadge">—</span></small>
+            </div>
+        </div>
+
+        <button class="icon-top-btn" id="logoutBtn" title="ចាកចេញ">
+            <i class="fa-solid fa-right-from-bracket"></i>
+        </button>
+
+        <div class="notif-wrap" id="notifWrap">
+
+            <button class="icon-top-btn"
+                    id="lowStockBtn"
+                    title="ជូនដំណឹងស្តុកជិតអស់">
+
+                <i class="fa-solid fa-bell"></i>
+                <span class="notif-badge" id="lowStockBadge" style="display:none;">0</span>
+
+            </button>
+
+            <div class="notif-panel" id="lowStockPanel">
+                <div class="notif-panel-header">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    ស្តុកជិតអស់ (តិចជាង 50 ក្បាល)
+                </div>
+                <div id="lowStockList" class="notif-panel-list">
+                    <div class="empty-mini">គ្មានស្តុកជិតអស់ទេ 🎉</div>
+                </div>
+            </div>
+
+        </div>
+
+        <button class="icon-top-btn lang-toggle-btn"
+                id="langToggleBtn"
+                type="button"
+                title="Switch to English">
+
+            <i class="fa-solid fa-language"></i>
+            <span class="lang-code">EN</span>
+
+        </button>
+
+        <button class="icon-top-btn"
+                id="darkModeBtn"
+                title="Dark Mode">
+
+            <i class="fa-solid fa-moon"></i>
+
+        </button>
+
+    </div>
+
+</header>
+
+
+<!-- =====================================================
+     DASHBOARD
+===================================================== -->
+
+<section class="page active"
+         id="dashboard">
+
+    <div class="welcome">
+
+        <h1>
+            សួស្តី 👋 សូមស្វាគមន៍
+        </h1>
+
+        <p>
+            នេះជាផ្ទាំង Dashboard សម្រាប់គ្រប់គ្រងស្តុក Brochure
+        </p>
+
+    </div>
+
+
+    <!-- LOW STOCK ALERT -->
+
+    <div class="low-stock-alert" id="lowStockDashCard" style="display:none;">
+        <div class="low-stock-alert-head">
+            <div>
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                ជូនដំណឹង៖ ស្តុកជិតអស់ <span id="lowStockDashCount">0</span> មុខ
+            </div>
+            <span>តិចជាង 50 ក្បាល</span>
+        </div>
+        <div class="low-stock-alert-list" id="lowStockDashList"></div>
+    </div>
+
+
+    <!-- STATISTICS -->
+
+    <div class="stats">
+
+        <div class="stat-card">
+
+            <div class="stat-info">
+
+                <small>
+                    មុខទំនិញសរុប
+                </small>
+
+                <h3 id="dashItems">
+                    0
+                </h3>
+
+            </div>
+
+            <div class="stat-icon">
+
+                <i class="fa-solid fa-box"></i>
+
+            </div>
+
+        </div>
+
+
+        <div class="stat-card">
+
+            <div class="stat-info">
+
+                <small>
+                    ចំនួនក្បាលសរុប
+                </small>
+
+                <h3 id="dashUnits">
+                    0
+                </h3>
+
+            </div>
+
+            <div class="stat-icon">
+
+                <i class="fa-solid fa-layer-group"></i>
+
+            </div>
+
+        </div>
+
+
+        <div class="stat-card">
+
+            <div class="stat-info">
+
+                <small>
+                    ចំនួនឆ្នាំ
+                </small>
+
+                <h3 id="dashYears">
+                    0
+                </h3>
+
+            </div>
+
+            <div class="stat-icon">
+
+                <i class="fa-solid fa-calendar"></i>
+
+            </div>
+
+        </div>
+
+
+        <div class="stat-card">
+
+            <div class="stat-info">
+
+                <small>
+                    ស្តុកមធ្យម
+                </small>
+
+                <h3 id="dashAverage">
+                    0
+                </h3>
+
+            </div>
+
+            <div class="stat-icon">
+
+                <i class="fa-solid fa-chart-line"></i>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- CHART -->
+
+    <div class="chart-grid">
+
+        <div class="chart-card">
+
+            <div class="chart-header">
+
+                <h3>
+                    <i class="fa-solid fa-chart-column"></i>
+                    ចំនួនស្តុកតាមឆ្នាំ
+                </h3>
+
+                <span>
+                    Stock by Year
+                </span>
+
+            </div>
+
+            <div class="chart-box">
+
+                <canvas id="yearChart"></canvas>
+
+            </div>
+
+        </div>
+
+
+        <div class="chart-card">
+
+            <div class="chart-header">
+
+                <h3>
+                    សមាមាត្រស្តុក
+                </h3>
+
+                <span>
+                    Distribution
+                </span>
+
+            </div>
+
+            <div class="chart-box">
+
+                <canvas id="pieChart"></canvas>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- RECENT -->
+
+    <div class="card">
+
+        <div class="card-header">
+
+            <h3>
+                <i class="fa-solid fa-clock"></i>
+                Brochure ថ្មីៗ
+            </h3>
+
+            <button class="btn-add"
+                    onclick="goPage('stock')">
+
+                មើលទាំងអស់
+
+            </button>
+
+        </div>
+
+        <div id="recentTable">
+
+            <div class="empty">
+                កំពុងផ្ទុក...
+            </div>
+
+        </div>
+
+    </div>
+
+</section>
+
+
+<!-- =====================================================
+     STOCK PAGE
+===================================================== -->
+
+<section class="page"
+         id="stock">
+
+    <div class="card">
+
+        <div class="card-header">
+
+            <div>
+
+                <h3>
+                    <i class="fa-solid fa-boxes-stacked"></i>
+                    បញ្ជីស្តុក Brochure
+                </h3>
+
+            </div>
+
+
+            <div class="search">
+
+                <input
+                    type="text"
+                    id="search"
+                    placeholder="ស្វែងរក Brochure..."
+                >
+
+                <button class="btn-secondary" id="btnPrintStock" title="បោះពុម្ពស្តុក">
+                    <i class="fa-solid fa-print"></i>
+                    Print
+                </button>
+
+                <div class="export-wrap" id="stockExportWrap">
+                    <button class="btn-secondary" id="btnExportStock" title="នាំចេញទិន្នន័យស្តុក">
+                        <i class="fa-solid fa-file-export"></i>
+                        Export
+                    </button>
+                    <div class="export-menu" id="stockExportMenu">
+                        <button class="export-menu-item" onclick="exportStock('xlsx')">
+                            <i class="fa-solid fa-file-excel"></i>
+                            Excel (.xlsx)
+                        </button>
+                        <button class="export-menu-item" onclick="exportStock('csv')">
+                            <i class="fa-solid fa-file-csv"></i>
+                            CSV (.csv)
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <div id="stockContent">
+
+            <div class="empty">
+                កំពុងផ្ទុកទិន្នន័យ...
+            </div>
+
+        </div>
+
+    </div>
+
+</section>
+
+
+<!-- =====================================================
+     STOCK OUT PAGE
+===================================================== -->
+<section class="page" id="stockout">
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <h3><i class="fa-solid fa-arrow-up-from-bracket"></i> Stock Out</h3>
+                <div class="page-hint">គ្រប់គ្រងការដកស្តុក Brochure ចេញ និងសំណើស្នើសុំពី Staff</div>
+            </div>
+        </div>
+
+        <div class="subtabs">
+            <button type="button" class="subtab-btn active" id="stockOutTabTransactions" onclick="switchStockOutTab('transactions')">
+                <i class="fa-solid fa-clock-rotate-left"></i> ប្រតិបត្តិការ
+            </button>
+            <button type="button" class="subtab-btn" id="stockOutTabRequests" onclick="switchStockOutTab('requests')">
+                <i class="fa-solid fa-inbox"></i> សំណើស្នើសុំ
+                <span class="subtab-badge" id="stockOutRequestsTabBadge" style="display:none;">0</span>
+            </button>
+        </div>
+
+        <div id="stockOutTxPanel">
+            <div class="card-header" style="border-top:1px solid var(--border);">
+                <div class="page-hint" style="margin:0;">ថ្ងៃយកចេញ • Brochure • ឆ្នាំ • ផ្នែក • ឈ្មោះអ្នកយក • ចំនួនយកចេញ</div>
+                <div class="search">
+                    <input type="text" id="stockOutSearch" placeholder="ស្វែងរក Stock Out...">
+                    <div class="export-wrap" id="stockOutExportWrap">
+                        <button class="btn-secondary" id="btnExportStockOut" title="នាំចេញទិន្នន័យ Stock Out">
+                            <i class="fa-solid fa-file-export"></i>
+                            Export
+                        </button>
+                        <div class="export-menu" id="stockOutExportMenu">
+                            <button class="export-menu-item" onclick="exportStockOut('xlsx')">
+                                <i class="fa-solid fa-file-excel"></i>
+                                Excel (.xlsx)
+                            </button>
+                            <button class="export-menu-item" onclick="exportStockOut('csv')">
+                                <i class="fa-solid fa-file-csv"></i>
+                                CSV (.csv)
+                            </button>
+                        </div>
+                    </div>
+                    <button class="btn-add" id="btnAddStockOut"><i class="fa-solid fa-plus"></i> បន្ថែម Stock Out</button>
+                    <button class="btn-add" id="btnRequestStockOut"><i class="fa-solid fa-paper-plane"></i> ស្នើសុំ Stock Out</button>
+                </div>
+            </div>
+            <div id="stockOutContent"><div class="empty">កំពុងផ្ទុកទិន្នន័យ...</div></div>
+        </div>
+
+        <div id="stockOutReqPanel" style="display:none;">
+            <div class="card-header" style="border-top:1px solid var(--border);">
+                <div class="page-hint" style="margin:0;">Staff ស្នើសុំ → Admin អនុម័ត/បដិសេធ → ស្តុកកាត់ត្រឹមតែពេលអនុម័តរួច</div>
+                <div class="search">
+                    <input type="text" id="stockOutRequestSearch" placeholder="ស្វែងរកសំណើ...">
+                    <select id="stockOutRequestStatusFilter" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-family:'Kantumruy Pro';outline:none;">
+                        <option value="">គ្រប់ស្ថានភាព</option>
+                        <option value="pending">កំពុងរង់ចាំ</option>
+                        <option value="approved">បានអនុម័ត</option>
+                        <option value="rejected">បានបដិសេធ</option>
+                    </select>
+                </div>
+            </div>
+            <div id="stockOutRequestsContent"><div class="empty">កំពុងផ្ទុកទិន្នន័យ...</div></div>
+        </div>
+
+    </div>
+</section>
+
+<!-- =====================================================
+     STOCK IN PAGE
+===================================================== -->
+<section class="page" id="stockin">
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <h3><i class="fa-solid fa-dolly"></i> ប្រវត្តិការបញ្ចូលស្តុក (Stock In)</h3>
+                <div class="page-hint">ថ្ងៃបញ្ចូល • Brochure • ឆ្នាំ • ចំនួនបញ្ចូល • ចំណាំ</div>
+            </div>
+            <div class="search">
+                <input type="text" id="stockInSearch" placeholder="ស្វែងរក Stock In...">
+                <div class="export-wrap" id="stockInExportWrap">
+                    <button class="btn-secondary" id="btnExportStockIn" title="នាំចេញទិន្នន័យ Stock In">
+                        <i class="fa-solid fa-file-export"></i>
+                        Export
+                    </button>
+                    <div class="export-menu" id="stockInExportMenu">
+                        <button class="export-menu-item" onclick="exportStockIn('xlsx')">
+                            <i class="fa-solid fa-file-excel"></i>
+                            Excel (.xlsx)
+                        </button>
+                        <button class="export-menu-item" onclick="exportStockIn('csv')">
+                            <i class="fa-solid fa-file-csv"></i>
+                            CSV (.csv)
+                        </button>
+                    </div>
+                </div>
+                <button class="btn-add" id="btnAddStockIn"><i class="fa-solid fa-plus"></i> បន្ថែម Stock In</button>
+            </div>
+        </div>
+        <div id="stockInContent"><div class="empty">កំពុងផ្ទុកទិន្នន័យ...</div></div>
+    </div>
+</section>
+
+<!-- =====================================================
+     DEPARTMENT PAGE
+===================================================== -->
+<section class="page" id="departments">
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <h3><i class="fa-solid fa-building"></i> គ្រប់គ្រង Department និងបុគ្គលិក</h3>
+                <div class="page-hint">បញ្ចូលផ្នែក និងឈ្មោះបុគ្គលិកសម្រាប់ប្រើពេលដក Brochure</div>
+            </div>
+            <div class="search">
+                <button class="btn-secondary" id="btnAddDepartment"><i class="fa-solid fa-building-circle-plus"></i> បន្ថែមផ្នែក</button>
+                <button class="btn-add" id="btnAddEmployee"><i class="fa-solid fa-user-plus"></i> បន្ថែមបុគ្គលិក</button>
+            </div>
+        </div>
+        <div id="departmentContent"><div class="empty">កំពុងផ្ទុកទិន្នន័យ...</div></div>
+    </div>
+</section>
+
+
+<!-- =====================================================
+     YEARS
+===================================================== -->
+
+<section class="page"
+         id="years">
+
+    <div class="card">
+
+        <div class="card-header">
+
+            <h3>
+                <i class="fa-solid fa-calendar-days"></i>
+                ស្តុកតាមឆ្នាំ
+            </h3>
+
+        </div>
+
+
+        <div style="padding:20px">
+
+            <div class="year-grid"
+                 id="yearCards">
+
+                <div class="empty">
+                    កំពុងផ្ទុក...
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</section>
+
+
+<!-- =====================================================
+     REPORTS
+===================================================== -->
+
+<section class="page"
+         id="reports">
+
+    <div class="report-box">
+
+        <h3>
+            <i class="fa-solid fa-file-lines"></i>
+            របាយការណ៍ស្តុក
+        </h3>
+
+        <br>
+
+        <div class="report-row">
+
+            <span class="report-label">
+                មុខទំនិញសរុប
+            </span>
+
+            <span class="report-value"
+                  id="reportItems">
+                0
+            </span>
+
+        </div>
+
+
+        <div class="report-row">
+
+            <span class="report-label">
+                ចំនួនក្បាលសរុប
+            </span>
+
+            <span class="report-value"
+                  id="reportUnits">
+                0
+            </span>
+
+        </div>
+
+
+        <div class="report-row">
+
+            <span class="report-label">
+                ចំនួនឆ្នាំ
+            </span>
+
+            <span class="report-value"
+                  id="reportYears">
+                0
+            </span>
+
+        </div>
+
+
+        <div class="report-row">
+
+            <span class="report-label">
+                ចំនួនមធ្យមក្នុងមុខ
+            </span>
+
+            <span class="report-value"
+                  id="reportAverage">
+                0
+            </span>
+
+        </div>
+
+        <div class="report-row">
+            <span class="report-label">ចំនួន Stock Out សរុប</span>
+            <span class="report-value" id="reportStockOutCount">0</span>
+        </div>
+        <div class="report-row">
+            <span class="report-label">ចំនួនយកចេញសរុប (ក្បាល)</span>
+            <span class="report-value" id="reportStockOutUnits">0</span>
+        </div>
+
+    </div>
+
+    <div class="report-grid">
+        <div class="report-panel">
+            <div class="report-panel-head">
+                <h3><i class="fa-solid fa-building"></i> ផ្នែកយកច្រើនបំផុត</h3>
+                <span style="font-size:11px;color:var(--text-soft);">តាមចំនួនក្បាល</span>
+            </div>
+            <div class="report-panel-body" id="reportByDepartment">
+                <div class="empty-mini" style="padding:20px;">មិនទាន់មានទិន្នន័យ Stock Out</div>
+            </div>
+        </div>
+        <div class="report-panel">
+            <div class="report-panel-head">
+                <h3><i class="fa-solid fa-user"></i> និយោជិតយកញឹកញាប់</h3>
+                <span style="font-size:11px;color:var(--text-soft);">តាមចំនួនដង + ក្បាល</span>
+            </div>
+            <div class="report-panel-body" id="reportByEmployee">
+                <div class="empty-mini" style="padding:20px;">មិនទាន់មានទិន្នន័យ Stock Out</div>
+            </div>
+        </div>
+    </div>
+
+</section>
+
+
+<!-- =====================================================
+     SETTINGS
+===================================================== -->
+
+<section class="page"
+         id="settings">
+
+    <div class="setting-card">
+
+        <h3>
+            <i class="fa-solid fa-gear"></i>
+            ការកំណត់ប្រព័ន្ធ
+        </h3>
+
+
+        <div class="setting-row">
+
+            <div>
+
+                <div class="setting-title">
+                    Dark Mode
+                </div>
+
+                <div class="setting-desc">
+                    ប្តូរទៅ Theme ងងឹត
+                </div>
+
+            </div>
+
+
+            <label class="switch">
+
+                <input
+                    type="checkbox"
+                    id="darkSwitch">
+
+                <span class="slider"></span>
+
+            </label>
+
+        </div>
+
+
+        <div class="setting-row">
+
+            <div>
+
+                <div class="setting-title">
+                    Firebase
+                </div>
+
+                <div class="setting-desc">
+                    Real-time database connection
+                </div>
+
+            </div>
+
+            <span style="color:var(--primary)">
+                <i class="fa-solid fa-circle-check"></i>
+                Connected
+            </span>
+
+        </div>
+
+
+        <div class="setting-row">
+
+            <div>
+
+                <div class="setting-title">
+                    ឈ្មោះអ្នកប្រើ (Operator)
+                </div>
+
+                <div class="setting-desc">
+                    ឈ្មោះនេះនឹងត្រូវកត់ត្រាក្នុង Audit Log ពេលកែ/លុបទិន្នន័យ
+                </div>
+
+            </div>
+
+            <div style="display:flex;gap:8px;align-items:center;">
+                <input type="text" id="operatorNameInput" placeholder="ឧ. សុខ ដារ៉ា" style="width:160px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-family:'Kantumruy Pro';outline:none;">
+                <button class="btn-secondary" id="btnSaveOperator" style="padding:8px 12px;">រក្សាទុក</button>
+            </div>
+
+        </div>
+
+        <div class="setting-row">
+            <div>
+                <div class="setting-title">កម្រិតស្តុកជិតអស់</div>
+                <div class="setting-desc">បើចំនួនស្តុកតិចជាងលេខនេះ → Alert + ផ្ញើ email</div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;">
+                <input type="number" id="lowStockThresholdInput" min="1" step="1" placeholder="50" style="width:90px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-family:'Kantumruy Pro';outline:none;">
+                <button class="btn-secondary" id="btnSaveLowStockSettings" style="padding:8px 12px;">រក្សាទុក</button>
+            </div>
+        </div>
+
+        <div class="setting-row">
+            <div>
+                <div class="setting-title">Email Admin (ជូនដំណឹងស្តុក)</div>
+                <div class="setting-desc">អាចដាក់ច្រើន email ដោយញែកតាមសញ្ញាក្បៀស (,) — ឧ. admin@company.com</div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
+                <input type="text" id="adminNotifyEmailsInput" placeholder="admin@example.com" style="width:min(280px,70vw);padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-family:'Kantumruy Pro';outline:none;">
+            </div>
+        </div>
+
+        <div class="setting-row">
+            <div>
+                <div class="setting-title">Browser Notification</div>
+                <div class="setting-desc">អនុញ្ញាតឲ្យកម្មវិធីជូនដំណឹងនៅលើកុំព្យូទ័រ/ទូរសព្ទ</div>
+            </div>
+            <button class="btn-secondary" id="btnEnableBrowserNotif" style="padding:8px 12px;">
+                <i class="fa-solid fa-bell"></i> បើកការជូនដំណឹង
+            </button>
+        </div>
+
+        <div class="setting-row">
+            <div>
+                <div class="setting-title">Backup ទិន្នន័យ (JSON)</div>
+                <div class="setting-desc">នាំចេញទិន្នន័យទាំងអស់ (Brochure, Stock In/Out, Department, Audit) ជា JSON ដើម្បីចម្លងទុក</div>
+            </div>
+            <button class="btn-secondary" id="btnBackupJson" style="padding:8px 12px;">
+                <i class="fa-solid fa-download"></i> Download Backup
+            </button>
+        </div>
+
+    </div>
+
+</section>
+
+
+<!-- =====================================================
+     AUDIT LOG
+===================================================== -->
+<section class="page" id="audit">
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <h3><i class="fa-solid fa-clipboard-list"></i> Audit Log — ប្រវត្តិសកម្មភាព</h3>
+                <div class="page-hint">កត់ត្រាអ្នកដែលបង្កើត / កែ / លុប ទិន្នន័យ (ប្រើឈ្មោះអ្នកប្រើពីការកំណត់)</div>
+            </div>
+            <div class="search">
+                <input type="text" id="auditSearch" placeholder="ស្វែងរក...">
+            </div>
+        </div>
+
+        <div style="padding:18px 20px 0;">
+            <div class="audit-filters">
+                <select id="auditActionFilter">
+                    <option value="">គ្រប់សកម្មភាព</option>
+                    <option value="create">បង្កើត</option>
+                    <option value="update">កែប្រែ</option>
+                    <option value="delete">លុប</option>
+                </select>
+                <select id="auditEntityFilter">
+                    <option value="">គ្រប់ប្រភេទ</option>
+                    <option value="brochure">Brochure</option>
+                    <option value="stockIn">Stock In</option>
+                    <option value="stockOut">Stock Out</option>
+                    <option value="department">Department</option>
+                    <option value="employee">Employee</option>
+                </select>
+            </div>
+        </div>
+
+        <div id="auditContent">
+            <div class="empty">កំពុងផ្ទុក...</div>
+        </div>
+    </div>
+</section>
+
+</main>
+
+</div>
+
+
+<!-- =====================================================
+     PRINT AREA (visible only when printing)
+===================================================== -->
+
+<div class="print-area" id="printArea" style="display:none;">
+    <div class="print-title">បញ្ជីស្តុក Brochure</div>
+    <div class="print-subtitle" id="printDateStamp"></div>
+    <div id="printTableContent"></div>
+    <div class="print-footer" id="printFooter"></div>
+</div>
+
+
+<!-- =====================================================
+     FULL SIZE IMAGE VIEWER
+===================================================== -->
+
+<div class="image-lightbox" id="imageLightbox">
+
+    <div class="image-lightbox-content">
+
+        <button
+            type="button"
+            class="image-lightbox-close"
+            id="imageLightboxClose"
+            title="បិទ">
+            <i class="fa-solid fa-xmark"></i>
+        </button>
+
+        <img
+            id="fullSizeImage"
+            src=""
+            alt="Full size Brochure">
+
+        <div
+            class="image-lightbox-title"
+            id="fullSizeImageTitle">
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =====================================================
+     STOCK OUT MODAL
+===================================================== -->
+<div class="overlay" id="stockOutOverlay">
+    <div class="modal">
+        <h2 id="stockOutModalTitle">បន្ថែម Stock Out</h2>
+        <div class="field"><label>ថ្ងៃយកចេញ</label><input type="date" id="soDate"></div>
+        <div class="field"><label>ឈ្មោះ Brochure</label><select id="soBrochure"><option value="">-- ជ្រើសរើស Brochure --</option></select></div>
+        <div class="field"><label>ឆ្នាំ</label><input type="text" id="soYear" readonly placeholder="ឆ្នាំនឹងបង្ហាញដោយស្វ័យប្រវត្តិ"></div>
+        <div class="stock-info-box" id="soStockInfo">សូមជ្រើសរើស Brochure ដើម្បីមើលស្តុកបច្ចុប្បន្ន។</div>
+        <div class="field" id="soImageField" style="display:none;">
+            <label>រូបភាព Brochure</label>
+            <div class="image-preview-wrap">
+                <img id="soImagePreview" class="image-preview" alt="Brochure" style="display:none;cursor:zoom-in;">
+                <div class="brochure-placeholder" id="soImagePlaceholder" style="width:78px;height:78px;"><i class="fa-solid fa-image"></i></div>
+                <div class="image-help">រូបភាពនៃ Brochure ដែលបានជ្រើស (ចុចរូបដើម្បីមើល Full Size)</div>
+            </div>
+        </div>
+        <div class="field"><label>ផ្នែក (Department)</label><select id="soDepartment"><option value="">-- ជ្រើសរើសផ្នែក --</option></select></div>
+        <div class="field"><label>ឈ្មោះអ្នកយក</label><select id="soEmployee" disabled><option value="">-- ជ្រើសរើសអ្នកយក --</option></select></div>
+        <div class="field"><label>ចំនួនយកចេញ</label><input type="number" id="soQuantity" min="1" step="1" placeholder="ឧ. 100"></div>
+        <div class="err" id="stockOutErr"></div>
+        <div class="modal-actions">
+            <button class="btn-cancel" id="btnCancelStockOut">បោះបង់</button>
+            <button class="btn-save" id="btnSaveStockOut"><i class="fa-solid fa-floppy-disk"></i> រក្សាទុក Stock Out</button>
+        </div>
+    </div>
+</div>
+
+<!-- =====================================================
+     STOCK IN MODAL
+===================================================== -->
+<div class="overlay" id="stockInOverlay">
+    <div class="modal">
+        <h2 id="stockInModalTitle">បន្ថែម Stock In</h2>
+        <div class="field"><label>ថ្ងៃបញ្ចូល</label><input type="date" id="siDate"></div>
+
+        <div class="field" id="siModeField">
+            <label>ប្រភេទ Brochure</label>
+            <div class="mode-toggle">
+                <button type="button" class="mode-btn active" id="siModeExisting" data-mode="existing">
+                    <i class="fa-solid fa-list-check"></i> ស្តុកមានស្រាប់
+                </button>
+                <button type="button" class="mode-btn" id="siModeNew" data-mode="new">
+                    <i class="fa-solid fa-plus"></i> Brochure ថ្មី
+                </button>
+            </div>
+        </div>
+
+        <div class="field" id="siExistingWrap">
+            <label>ឈ្មោះ Brochure</label>
+            <select id="siBrochureSelect"><option value="">-- ជ្រើសរើស Brochure --</option></select>
+        </div>
+
+        <div class="field" id="siNewNameWrap" style="display:none">
+            <label>ឈ្មោះ Brochure ថ្មី</label>
+            <input type="text" id="siBrochureNameNew" placeholder="វាយឈ្មោះ Brochure ថ្មី...">
+        </div>
+
+        <div class="field" id="siNewYearWrap" style="display:none">
+            <label>ឆ្នាំបោះពុម្ព</label>
+            <input type="text" id="siYearNew" placeholder="ឧ. 2026">
+        </div>
+
+        <div class="field" id="siExistingYearWrap">
+            <label>ឆ្នាំ</label>
+            <input type="text" id="siYear" readonly placeholder="ឆ្នាំនឹងបង្ហាញដោយស្វ័យប្រវត្តិ">
+        </div>
+
+        <div class="stock-info-box" id="siStockInfo">
+            សូមជ្រើសរើស Brochure ដើម្បីមើលស្តុកបច្ចុប្បន្ន។
+        </div>
+
+        <div class="field" id="siImageWrap">
+            <label>រូបភាព Brochure <span style="font-weight:400;color:var(--text-soft);">(ស្រេចចិត្ត)</span></label>
+            <div class="image-preview-wrap">
+                <img id="siImagePreview" class="image-preview" alt="Preview" style="display:none;cursor:zoom-in;">
+                <div>
+                    <input type="file" id="siImage" accept="image/*">
+                    <div class="image-help" id="siImageHelp">
+                        Brochure មានស្រាប់៖ បង្ហាញរូបបច្ចុប្បន្ន · អាចជ្រើសរូបថ្មីដើម្បីប្តូរ<br>
+                        Brochure ថ្មី៖ អាច Upload រូបភាព
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="field"><label>ចំនួនបញ្ចូល</label><input type="text" id="siQuantity" min="1" step="1" placeholder="ឧ. 500"></div>
+        <div class="field"><label>ចំណាំ / មូលហេតុ</label><input type="text" id="siNote" placeholder="ឧ. បោះពុម្ពថែម"></div>
+        <div class="err" id="stockInErr"></div>
+        <div class="modal-actions">
+            <button class="btn-cancel" id="btnCancelStockIn">បោះបង់</button>
+            <button class="btn-save" id="btnSaveStockIn"><i class="fa-solid fa-floppy-disk"></i> រក្សាទុក Stock In</button>
+        </div>
+    </div>
+</div>
+
+
+
+<!-- =====================================================
+     DEPARTMENT MODAL
+===================================================== -->
+<div class="overlay" id="departmentOverlay">
+    <div class="modal">
+        <h2 id="departmentModalTitle">បន្ថែមផ្នែក</h2>
+        <div class="field" id="departmentNameField"><label>ឈ្មោះផ្នែក</label><input type="text" id="departmentName" placeholder="ឧ. IT Department"></div>
+        <div class="field" id="employeeDepartmentField" style="display:none"><label>ផ្នែក</label><select id="employeeDepartment"><option value="">-- ជ្រើសរើសផ្នែក --</option></select></div>
+        <div class="field" id="employeeNameField" style="display:none"><label>ឈ្មោះបុគ្គលិក</label><input type="text" id="employeeName" placeholder="ឧ. សុខ ដារ៉ា"></div>
+        <div class="err" id="departmentErr"></div>
+        <div class="modal-actions">
+            <button class="btn-cancel" id="btnCancelDepartment">បោះបង់</button>
+            <button class="btn-save" id="btnSaveDepartment"><i class="fa-solid fa-floppy-disk"></i> រក្សាទុក</button>
+        </div>
+    </div>
+</div>
+
+
+<!-- =====================================================
+     MODAL
+===================================================== -->
+
+<div class="overlay"
+     id="overlay">
+
+    <div class="modal">
+
+        <button
+            type="button"
+            class="modal-close"
+            id="modalCloseBtn"
+            title="បិទ">
+            <i class="fa-solid fa-xmark"></i>
+        </button>
+
+        <h2 id="modalTitle">
+            បន្ថែមធាតុថ្មី
+        </h2>
+
+
+        <div class="field">
+
+            <label>
+                ឈ្មោះ Brochure
+            </label>
+
+            <input
+                type="text"
+                id="fName"
+                placeholder="ឧ. HEALTH NEWS">
+
+        </div>
+
+
+        <div class="field">
+
+            <label>
+                ឆ្នាំបោះពុម្ព
+            </label>
+
+            <input
+                type="text"
+                id="fYear"
+                placeholder="ឧ. 2026">
+
+        </div>
+
+
+        <div class="field">
+
+            <label>
+                រូបភាព Brochure
+            </label>
+
+            <input
+                type="file"
+                id="fImage"
+                accept="image/*">
+
+            <div class="image-preview-wrap">
+
+                <img
+                    id="imagePreview"
+                    class="image-preview"
+                    alt="Brochure preview"
+                    style="cursor:zoom-in;"
+                    onclick="if(this.src){ viewImage(this.src, document.getElementById('fName').value || 'Brochure'); }">
+
+                <div class="image-help">
+                    ជ្រើសរើសរូបភាព Brochure របស់អ្នក។<br>
+                    ប្រព័ន្ធនឹងបង្រួមរូបភាពដោយស្វ័យប្រវត្តិ។
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <div class="field">
+
+            <label>
+                ចំនួនសរុប
+            </label>
+
+            <input
+                type="text"
+                id="fUnit"
+                placeholder="ឧ. 1935"
+                inputmode="numeric">
+
+        </div>
+
+
+        <div class="field">
+
+            <label>
+                ផ្សេងៗ
+            </label>
+
+            <input
+                type="text"
+                id="fOther"
+                placeholder="ស្រេចចិត្ត">
+
+        </div>
+
+
+        <div class="err"
+             id="formErr">
+
+            សូមបំពេញ ឈ្មោះ ឆ្នាំ និងចំនួនសរុប
+
+        </div>
+
+
+        <div class="modal-actions">
+
+            <button
+                class="btn-cancel"
+                id="btnCancel">
+
+                បោះបង់
+
+            </button>
+
+
+            <button
+                class="btn-save"
+                id="btnSave">
+
+                <i class="fa-solid fa-floppy-disk"></i>
+
+                រក្សាទុក
+
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
+
+<!-- Firebase SDKs (compat for simplicity) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.14.0/firebase-app-compat.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.14.0/firebase-auth-compat.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.14.0/firebase-firestore-compat.min.js"></script>
+
+<!-- App JS -->
+<script src="js/i18n.js"></script>
+<script src="js/app.js"></script>
+<script>
+document.getElementById("langToggleBtn").addEventListener("click", function(){
+    if(window.i18n) window.i18n.toggleLanguage();
+});
+</script>
+
+</body>
+</html>
