@@ -262,12 +262,14 @@ function startDataListenersOnce(){
     if(dataListenersStarted) return;
     dataListenersStarted = true;
 
-    // Listen ភ្លាមៗ (ត្រូវការ Dashboard + badge)
+    // Listen ភ្លាមៗ (ត្រូវការ Dashboard + Reports + badge)
     listenItems();
     listenDepartments();
     listenStockOutRequests();   // សម្រាប់ badge
+    listenStockOuts();          // ត្រូវការសម្រាប់ "របាយការណ៍" ឲ្យបង្ហាញលេខត្រឹមត្រូវ
+    window._stockOutsListening = true; // កុំឲ្យ goPage("stockout") subscribe ស្ទួនទៀត
 
-    // ទុក Stock Out / Stock In / Audit ឲ្យ listen ពេលចូល page
+    // ទុក Stock In / Audit ឲ្យ listen ពេលចូល page
 }
 
 function stopDataListeners() {
@@ -560,40 +562,15 @@ const titles = {
 
 function goPage(page){
 
-    pages.forEach(p => {
+    pages.forEach(p => p.classList.remove("active"));
+    menuItems.forEach(m => m.classList.remove("active"));
 
-        p.classList.remove("active");
+    document.getElementById(page).classList.add("active");
 
-    });
+    const menu = document.querySelector(`.menu-item[data-page="${page}"]`);
+    if(menu) menu.classList.add("active");
 
-
-    menuItems.forEach(m => {
-
-        m.classList.remove("active");
-
-    });
-
-
-    document.getElementById(page)
-        .classList.add("active");
-
-
-    const menu =
-        document.querySelector(
-            `.menu-item[data-page="${page}"]`
-        );
-
-
-    if(menu){
-
-        menu.classList.add("active");
-
-    }
-
-
-    pageTitle.textContent =
-        titles[page];
-
+    pageTitle.textContent = titles[page];
 
     if(typeof setSidebarOpen === "function"){
         setSidebarOpen(false);
@@ -602,20 +579,18 @@ function goPage(page){
         document.getElementById("sidebarBackdrop")?.classList.remove("show");
     }
 
-
     if(page === "dashboard"){
-
         updateDashboard();
-
     }
 
     if(page === "stockout"){
-    if(!window._stockOutsListening){
-        listenStockOuts();
-        window._stockOutsListening = true;
+        if(!window._stockOutsListening){
+            listenStockOuts();
+            window._stockOutsListening = true;
+        }
+        renderStockOut();
     }
-    renderStockOut();
-    }
+
     if(page === "stockin"){
         if(!window._stockInsListening){
             listenStockIns();
@@ -623,6 +598,7 @@ function goPage(page){
         }
         renderStockIn();
     }
+
     if(page === "audit"){
         if(!window._auditListening){
             listenAuditLogs();
@@ -631,6 +607,10 @@ function goPage(page){
         renderAuditLog();
     }
 
+    // ✅ បន្ថែមបន្ទាត់នេះ
+    if(page === "reports"){
+        updateReports();
+    }
 }
 
 
