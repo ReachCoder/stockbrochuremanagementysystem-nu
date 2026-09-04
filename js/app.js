@@ -1031,6 +1031,46 @@ async function updateItem(id,data){
 
 
 /* =====================================================
+   TOGGLE HIDE FROM PRINT
+===================================================== */
+
+async function toggleHidePrint(id){
+
+    if(!requireAdmin("លាក់/បង្ហាញ Brochure ពេលបោះពុម្ព")) return;
+
+    const item =
+        items.find(x => x.id === id);
+
+    if(!item) return;
+
+    const newValue = !item.hidePrint;
+
+    try{
+
+        await updateItem(id, { hidePrint: newValue });
+
+        await writeAuditLog({
+            action: "update",
+            entity: "brochure",
+            entityId: id,
+            entityName: item.name,
+            details: newValue
+                ? `លាក់ Brochure "${item.name}" មិនឲ្យបង្ហាញនៅពេលបោះពុម្ព`
+                : `បង្ហាញ Brochure "${item.name}" នៅពេលបោះពុម្ពវិញ`
+        });
+
+    }catch(error){
+
+        console.error(error);
+
+        alert("មិនអាចផ្លាស់ប្តូរស្ថានភាពបានទេ។ សូមព្យាយាមម្តងទៀត។");
+
+    }
+
+}
+
+
+/* =====================================================
    DELETE
 ===================================================== */
 
@@ -1130,6 +1170,10 @@ function openModal(item=null){
 
     document.getElementById("fOther").value =
         item?.other || "";
+
+
+    document.getElementById("fHidePrint").checked =
+        !!item?.hidePrint;
 
 
     document
@@ -1324,6 +1368,11 @@ async function saveForm(){
         .getElementById("fOther")
         .value.trim();
 
+    const hidePrint =
+        !!document
+        .getElementById("fHidePrint")
+        ?.checked;
+
     const imageFile =
         document.getElementById("fImage").files[0];
 
@@ -1405,6 +1454,7 @@ async function saveForm(){
                     year,
                     unit,
                     other,
+                    hidePrint,
                     ...(image ? {image} : {})
                 }
             );
@@ -1483,6 +1533,7 @@ async function saveForm(){
                     {
                         unit:newTotal,
                         other: other || existingItem.other || "",
+                        hidePrint,
                         ...(image ? {image} : {})
                     }
                 );
@@ -1510,6 +1561,7 @@ async function saveForm(){
                     year,
                     unit,
                     other,
+                    hidePrint,
                     ...(image ? {image} : {})
                 });
 
@@ -1698,7 +1750,10 @@ function renderStock(){
                                             : `<div class="brochure-placeholder" title="មិនទាន់មានរូបភាព"><i class="fa-solid fa-image"></i></div>`
                                         }
                                     </td>
-                                    <td><strong>${escapeHtml(item.name)}</strong></td>
+                                    <td>
+                                        <strong>${escapeHtml(item.name)}</strong>
+                                        ${item.hidePrint ? '<span class="hidden-badge" title="Brochure នេះនឹងមិនបង្ហាញនៅពេលបោះពុម្ព"><i class="fa-solid fa-eye-slash"></i> លាក់ពី Print</span>' : ''}
+                                    </td>
                                     <td>${escapeHtml(item.year)}</td>
                                     <td class="unit ${Number(item.unit||0) < LOW_STOCK_THRESHOLD ? 'low-stock' : ''}">
                                         ${Number(item.unit || 0).toLocaleString()}
@@ -1709,6 +1764,9 @@ function renderStock(){
                                         <button class="action-btn" onclick="editById('${item.id}')"><i class="fa-solid fa-pen"></i> កែ</button>
                                         <button class="action-btn stockin" onclick="openStockInModal('${item.id}')" title="បញ្ចូលស្តុក"><i class="fa-solid fa-arrow-up"></i> បញ្ចូលស្តុក</button>
                                         <button class="action-btn withdraw" onclick="openStockOutModal('${item.id}')" title="ដកស្តុក"><i class="fa-solid fa-arrow-down"></i> ដកស្តុក</button>
+                                        <button class="action-btn hide-toggle ${item.hidePrint ? 'is-hidden' : ''}" onclick="toggleHidePrint('${item.id}')" title="${item.hidePrint ? 'បង្ហាញនៅពេលបោះពុម្ពវិញ' : 'លាក់ពេលបោះពុម្ព'}">
+                                            <i class="fa-solid ${item.hidePrint ? 'fa-eye' : 'fa-eye-slash'}"></i> ${item.hidePrint ? 'បង្ហាញ' : 'លាក់ Print'}
+                                        </button>
                                         <button class="action-btn delete" onclick="deleteItem('${item.id}')"><i class="fa-solid fa-trash"></i> លុប</button>
                                     </td>
                                 </tr>`;
@@ -3026,7 +3084,17 @@ function updateLowStockAlerts(){
         if(low.length){
             dashCard.style.display = "block";
             document.getElementById("lowStockDashList").innerHTML = low.map(i =>
-                `<div class="low-stock-row"><strong>${escapeHtml(i.name)}</strong><span>${escapeHtml(i.year)}</span><div class="low-stock-qty">${Number(i.unit||0).toLocaleString()} ក្បាល នៅសល់</div></div>`
+                `<div class="low-stock-row">
+                    ${i.image
+                        ? `<img class="brochure-thumb thumb-mini" src="${escapeHtml(i.image)}" alt="${escapeHtml(i.name)}" onclick='viewImage(${JSON.stringify(i.image)}, ${JSON.stringify(i.name)})'>`
+                        : `<div class="brochure-placeholder thumb-mini"><i class="fa-solid fa-image"></i></div>`
+                    }
+                    <div class="low-stock-row-info">
+                        <strong>${escapeHtml(i.name)}</strong>
+                        <span>${escapeHtml(i.year)}</span>
+                        <div class="low-stock-qty">${Number(i.unit||0).toLocaleString()} ក្បាល នៅសល់</div>
+                    </div>
+                </div>`
             ).join("");
             document.getElementById("lowStockDashCount").textContent = low.length;
         }else{
@@ -3104,10 +3172,20 @@ function buildPrintTable(){
             String(item.year).toLowerCase().includes(search))
         : items;
 
+    // Brochure ដែលបានកំណត់ "លាក់ពេលបោះពុម្ព" នឹងមិនបង្ហាញនៅក្នុងរបាយការណ៍ Print ទេ
+    filtered = filtered.filter(item => !item.hidePrint);
+
     if(!filtered.length){
         document.getElementById("printFooter").innerHTML = "";
-        return `<div style="text-align:center;padding:30px;color:#666">មិនមានទិន្នន័យសម្រាប់បោះពុម្ព</div>`;
+        return `<div style="text-align:center;padding:30px;color:#666">មិនមានទិន្នន័យសម្រាប់បោះពុម្ព (ប្រហែលជាទាំងអស់ត្រូវបានលាក់ពី Print)</div>`;
     }
+
+    const hiddenCount = (search
+        ? items.filter(item =>
+            String(item.name).toLowerCase().includes(search) ||
+            String(item.year).toLowerCase().includes(search))
+        : items
+    ).filter(item => item.hidePrint).length;
 
     const groups = {};
 
@@ -3182,6 +3260,7 @@ function buildPrintTable(){
             <div class="sum-item">ចំនួនក្បាលសរុប៖ <strong>${grandTotalUnits.toLocaleString()} ក្បាល</strong></div>
             <div class="sum-item">ប្រព័ន្ធ៖ <strong>Brochure Stock Management</strong></div>
         </div>
+        ${hiddenCount ? `<div class="print-hidden-note">* មាន ${hiddenCount} មុខត្រូវបានលាក់ ហើយមិនបានបង្ហាញនៅក្នុងរបាយការណ៍នេះទេ</div>` : ""}
 
         <div class="print-sign-section">
             <div class="print-sign-box">
@@ -3718,6 +3797,10 @@ function renderRecent(){
 
                 <tr>
 
+                    <th style="width:70px;">
+                        រូបភាព
+                    </th>
+
                     <th>
                         Brochure
                     </th>
@@ -3740,8 +3823,16 @@ function renderRecent(){
 
                     <tr>
 
+                        <td class="brochure-image-cell">
+                            ${item.image
+                                ? `<img class="brochure-thumb thumb-mini" src="${escapeHtml(item.image)}" alt="${escapeHtml(item.name)}" title="ចុចដើម្បីមើលរូប Full Size" onclick='viewImage(${JSON.stringify(item.image)}, ${JSON.stringify(item.name)})'>`
+                                : `<div class="brochure-placeholder thumb-mini"><i class="fa-solid fa-image"></i></div>`
+                            }
+                        </td>
+
                         <td>
                             ${escapeHtml(item.name)}
+                            ${item.hidePrint ? '<span class="hidden-badge" title="Brochure នេះនឹងមិនបង្ហាញនៅពេលបោះពុម្ព"><i class="fa-solid fa-eye-slash"></i></span>' : ''}
                         </td>
 
                         <td>
