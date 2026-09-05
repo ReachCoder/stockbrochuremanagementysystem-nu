@@ -234,6 +234,10 @@
     <div class="top-actions">
 
         <div class="user-chip" id="userChip" title="អ្នកកំពុងប្រើ">
+            <div class="user-chip-avatar" id="userChipAvatar">
+                <img id="userChipAvatarImg" alt="" style="display:none;">
+                <i class="fa-solid fa-user" id="userChipAvatarIcon"></i>
+            </div>
             <div>
                 <strong id="userChipName">—</strong>
                 <small><span class="role-badge" id="userRoleBadge">—</span></small>
@@ -933,6 +937,42 @@
                 <i class="fa-solid fa-circle-check"></i>
                 Connected
             </span>
+
+        </div>
+
+
+        <div class="setting-row">
+
+            <div>
+
+                <div class="setting-title">
+                    រូបភាពប្រូហ្វាល
+                </div>
+
+                <div class="setting-desc">
+                    រូបភាពនេះនឹងបង្ហាញនៅជ្រុងខាងលើប្រព័ន្ធ (សម្រាប់គណនីរបស់អ្នក ទាំង Admin និង Staff)
+                </div>
+
+            </div>
+
+            <div class="profile-photo-row">
+
+                <div class="profile-photo-preview" id="profilePhotoPreview">
+                    <img id="profilePhotoPreviewImg" alt="" style="display:none;">
+                    <i class="fa-solid fa-user" id="profilePhotoPreviewIcon"></i>
+                </div>
+
+                <div class="profile-photo-actions">
+                    <input type="file" id="profilePhotoInput" accept="image/*" hidden>
+                    <button class="btn-secondary" id="btnChangeProfilePhoto" type="button" style="padding:7px 12px;font-size:12px;">
+                        <i class="fa-solid fa-camera"></i> ប្តូររូបភាព
+                    </button>
+                    <button class="btn-secondary" id="btnRemoveProfilePhoto" type="button" style="padding:7px 12px;font-size:12px;">
+                        <i class="fa-solid fa-trash"></i> លុបរូបភាព
+                    </button>
+                </div>
+
+            </div>
 
         </div>
 

@@ -147,6 +147,7 @@ async function ensureUserProfile(user){
     const profile = {
         email: user.email || "",
         displayName: user.displayName || (user.email ? user.email.split("@")[0] : "User"),
+        photoURL: user.photoURL || "",
         role: "staff",
         createdAt: Date.now()
     };
@@ -161,6 +162,38 @@ async function ensureUserProfile(user){
         throw e;
     }
     return { id: user.uid, ...profile };
+}
+
+function renderUserAvatar(){
+    const url = (currentUserProfile?.photoURL || "").trim();
+
+    const chipImg  = document.getElementById("userChipAvatarImg");
+    const chipIcon = document.getElementById("userChipAvatarIcon");
+    if(chipImg && chipIcon){
+        if(url){
+            chipImg.src = url;
+            chipImg.style.display = "block";
+            chipIcon.style.display = "none";
+        }else{
+            chipImg.removeAttribute("src");
+            chipImg.style.display = "none";
+            chipIcon.style.display = "block";
+        }
+    }
+
+    const previewImg  = document.getElementById("profilePhotoPreviewImg");
+    const previewIcon = document.getElementById("profilePhotoPreviewIcon");
+    if(previewImg && previewIcon){
+        if(url){
+            previewImg.src = url;
+            previewImg.style.display = "block";
+            previewIcon.style.display = "none";
+        }else{
+            previewImg.removeAttribute("src");
+            previewImg.style.display = "none";
+            previewIcon.style.display = "block";
+        }
+    }
 }
 
 function applyRoleUI(){
@@ -191,6 +224,8 @@ function applyRoleUI(){
         const opInput = document.getElementById("operatorNameInput");
         if(opInput && !opInput.value) opInput.value = opName;
     }
+
+    renderUserAvatar();
 }
 
 function showApp(){
@@ -4877,6 +4912,71 @@ function renderAuditLog(){
     document.getElementById("auditEntityFilter")?.addEventListener("change", renderAuditLog);
 
     initLowStockSettingsUI();
+})();
+
+/* Profile Photo (Admin & Staff) — upload/remove own avatar */
+(function(){
+    let uploadingPhoto = false;
+
+    document.getElementById("btnChangeProfilePhoto")?.addEventListener("click", () => {
+        document.getElementById("profilePhotoInput")?.click();
+    });
+
+    document.getElementById("profilePhotoInput")?.addEventListener("change", async e => {
+        const file = e.target.files && e.target.files[0];
+        e.target.value = "";
+        if(!file) return;
+
+        if(!currentUser){
+            alert("សូម Login ជាមុនសិន។");
+            return;
+        }
+        if(!file.type.startsWith("image/")){
+            alert("សូមជ្រើសរើសឯកសាររូបភាព។");
+            return;
+        }
+        if(uploadingPhoto) return;
+        uploadingPhoto = true;
+
+        const btn = document.getElementById("btnChangeProfilePhoto");
+        const originalHtml = btn ? btn.innerHTML : "";
+        if(btn){ btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> កំពុងផ្ទុក...'; }
+
+        try{
+            const url = await uploadImageToCloudinary(file);
+            await db.collection(USERS_COLLECTION).doc(currentUser.uid).set({photoURL:url}, {merge:true});
+            if(currentUserProfile) currentUserProfile.photoURL = url;
+            renderUserAvatar();
+        }catch(err){
+            console.error(err);
+            alert("មិនអាច Upload រូបភាពបានទេ សូមព្យាយាមម្តងទៀត។");
+        }finally{
+            uploadingPhoto = false;
+            if(btn){ btn.disabled = false; btn.innerHTML = originalHtml; }
+        }
+    });
+
+    document.getElementById("btnRemoveProfilePhoto")?.addEventListener("click", async () => {
+        if(!currentUser){
+            alert("សូម Login ជាមុនសិន។");
+            return;
+        }
+        const hasPhoto = !!(currentUserProfile?.photoURL || "").trim();
+        if(!hasPhoto){
+            alert("អ្នកមិនទាន់មានរូបភាពប្រូហ្វាលទេ។");
+            return;
+        }
+        if(!confirm("តើអ្នកចង់លុបរូបភាពប្រូហ្វាលមែនទេ?")) return;
+
+        try{
+            await db.collection(USERS_COLLECTION).doc(currentUser.uid).set({photoURL:""}, {merge:true});
+            if(currentUserProfile) currentUserProfile.photoURL = "";
+            renderUserAvatar();
+        }catch(err){
+            console.error(err);
+            alert("មិនអាចលុបរូបភាពបានទេ សូមព្យាយាមម្តងទៀត។");
+        }
+    });
 })();
 
 /* ESC CLOSE MODAL */
