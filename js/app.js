@@ -404,6 +404,9 @@ function getLowStockThreshold(){
 }
 let LOW_STOCK_THRESHOLD = getLowStockThreshold();
 let departmentModalMode = "department";
+let editingDepartmentId = null;
+let editingEmployeeDeptId = null;
+let editingEmployeeId = null;
 let lowStockNotifyBusy = false;
 
 /* Sort + Pagination state */
@@ -654,6 +657,134 @@ document.getElementById("sidebarBackdrop")?.addEventListener("click", () => {
 
 
 /* =====================================================
+   THEME COLOR (system-wide accent color)
+===================================================== */
+
+const THEME_COLOR_KEY = "themeColor";
+const DEFAULT_THEME_COLOR = "#3D4EDB";
+const THEME_COLOR_PRESETS = ["#3D4EDB","#2AA876","#E8A23D","#D64545","#0EA5B7","#9333EA","#EC4899","#334155"];
+
+function hexToRgb(hex){
+    hex = String(hex||"").replace("#","");
+    if(hex.length===3) hex = hex.split("").map(c=>c+c).join("");
+    const num = parseInt(hex,16);
+    return {r:(num>>16)&255, g:(num>>8)&255, b:num&255};
+}
+function rgbToHex(r,g,b){
+    return "#"+[r,g,b].map(v=>Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,"0")).join("");
+}
+function rgbToHsl(r,g,b){
+    r/=255; g/=255; b/=255;
+    const max=Math.max(r,g,b), min=Math.min(r,g,b);
+    let h,s; const l=(max+min)/2;
+    if(max===min){ h=0; s=0; }
+    else{
+        const d=max-min;
+        s = l>0.5 ? d/(2-max-min) : d/(max+min);
+        switch(max){
+            case r: h=(g-b)/d + (g<b?6:0); break;
+            case g: h=(b-r)/d + 2; break;
+            default: h=(r-g)/d + 4;
+        }
+        h/=6;
+    }
+    return {h:h*360, s:s*100, l:l*100};
+}
+function hslToRgb(h,s,l){
+    h/=360; s/=100; l/=100;
+    let r,g,b;
+    if(s===0){ r=g=b=l; }
+    else{
+        const hue2rgb=(p,q,t)=>{
+            if(t<0) t+=1;
+            if(t>1) t-=1;
+            if(t<1/6) return p+(q-p)*6*t;
+            if(t<1/2) return q;
+            if(t<2/3) return p+(q-p)*(2/3-t)*6;
+            return p;
+        };
+        const q = l<0.5 ? l*(1+s) : l+s-l*s;
+        const p = 2*l-q;
+        r=hue2rgb(p,q,h+1/3);
+        g=hue2rgb(p,q,h);
+        b=hue2rgb(p,q,h-1/3);
+    }
+    return {r:r*255, g:g*255, b:b*255};
+}
+function shadeHex(hex, lDelta, sDelta=0){
+    const {r,g,b} = hexToRgb(hex);
+    const hsl = rgbToHsl(r,g,b);
+    const l = Math.max(0, Math.min(100, hsl.l + lDelta));
+    const s = Math.max(0, Math.min(100, hsl.s + sDelta));
+    const rgb = hslToRgb(hsl.h, s, l);
+    return rgbToHex(rgb.r, rgb.g, rgb.b);
+}
+function setHslLightness(hex, l, sDelta=0){
+    const {r,g,b} = hexToRgb(hex);
+    const hsl = rgbToHsl(r,g,b);
+    const s = Math.max(0, Math.min(100, hsl.s + sDelta));
+    const rgb = hslToRgb(hsl.h, s, l);
+    return rgbToHex(rgb.r, rgb.g, rgb.b);
+}
+function getCurrentThemeColor(){
+    return localStorage.getItem(THEME_COLOR_KEY) || DEFAULT_THEME_COLOR;
+}
+function applyThemeColor(hex, opts={}){
+    const save = opts.save !== false;
+    if(!/^#[0-9a-f]{6}$/i.test(hex)) return;
+    const isDark = document.body.classList.contains("dark");
+    const primaryDark  = shadeHex(hex, isDark ? 14 : -18);
+    const primaryLight = isDark ? setHslLightness(hex, 22, -10) : setHslLightness(hex, 93, -25);
+
+    document.body.style.setProperty("--primary", hex);
+    document.body.style.setProperty("--primary-dark", primaryDark);
+    document.body.style.setProperty("--primary-light", primaryLight);
+
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if(meta) meta.setAttribute("content", hex);
+
+    const picker = document.getElementById("themeColorPicker");
+    if(picker) picker.value = hex;
+
+    document.querySelectorAll(".theme-color-swatch").forEach(sw=>{
+        sw.classList.toggle("active", String(sw.dataset.color||"").toLowerCase()===hex.toLowerCase());
+    });
+
+    if(save) localStorage.setItem(THEME_COLOR_KEY, hex);
+
+    setTimeout(()=>updateCharts(), 100);
+}
+function renderThemeColorPresets(){
+    const wrap = document.getElementById("themeColorPresets");
+    if(!wrap) return;
+    const current = getCurrentThemeColor();
+    wrap.innerHTML = THEME_COLOR_PRESETS.map(c=>
+        `<button type="button" class="theme-color-swatch${c.toLowerCase()===current.toLowerCase()?" active":""}" data-color="${c}" style="background:${c}" title="${c}"></button>`
+    ).join("");
+    wrap.querySelectorAll(".theme-color-swatch").forEach(btn=>{
+        btn.addEventListener("click", ()=>applyThemeColor(btn.dataset.color));
+    });
+}
+
+renderThemeColorPresets();
+applyThemeColor(getCurrentThemeColor(), {save:false});
+
+document.getElementById("themeColorPicker")?.addEventListener("input", e=>applyThemeColor(e.target.value));
+document.getElementById("btnResetThemeColor")?.addEventListener("click", ()=>{
+    applyThemeColor(DEFAULT_THEME_COLOR);
+    renderThemeColorPresets();
+});
+document.getElementById("themeColorBtn")?.addEventListener("click", e=>{
+    e.stopPropagation();
+    document.getElementById("themeColorPanel")?.classList.toggle("show");
+});
+document.addEventListener("click", e=>{
+    const wrap=document.getElementById("themeColorWrap");
+    if(wrap && !wrap.contains(e.target)) document.getElementById("themeColorPanel")?.classList.remove("show");
+});
+
+
+/* =====================================================
    DARK MODE
 ===================================================== */
 
@@ -687,6 +818,11 @@ function setDarkMode(enabled){
         ? `<i class="fa-solid fa-sun"></i>`
 
         : `<i class="fa-solid fa-moon"></i>`;
+
+
+    if(typeof applyThemeColor === "function"){
+        applyThemeColor(getCurrentThemeColor(), {save:false});
+    }
 
 
     setTimeout(() => {
@@ -1904,9 +2040,11 @@ function updateStockOutEmployees(){
     select.innerHTML=`<option value="">-- ជ្រើសរើសអ្នកយក --</option>`+employees.map(emp=>`<option value="${escapeHtml(emp.id)}">${escapeHtml(emp.name)}</option>`).join("");
     select.disabled=!depId || !employees.length;
 }
-function openDepartmentModal(mode="department"){
-    if(!requireAdmin("គ្រប់គ្រង Department")) return;
+function openDepartmentModal(mode="department", idA=null, idB=null){
+    const isEdit = mode==="editDepartment" || mode==="editEmployee";
+    if(!requireAdmin(isEdit ? "កែប្រែ Department" : "គ្រប់គ្រង Department")) return;
     departmentModalMode=mode;
+    editingDepartmentId=null;editingEmployeeDeptId=null;editingEmployeeId=null;
     const title=document.getElementById("departmentModalTitle");
     const nameField=document.getElementById("departmentNameField");
     const depField=document.getElementById("employeeDepartmentField");
@@ -1917,6 +2055,19 @@ function openDepartmentModal(mode="department"){
     if(mode==="department"){
         title.textContent="បន្ថែមផ្នែក";nameField.style.display="block";depField.style.display="none";empField.style.display="none";
         document.getElementById("departmentName").value="";save.innerHTML=`<i class="fa-solid fa-building-circle-plus"></i> រក្សាទុកផ្នែក`;
+    }else if(mode==="editDepartment"){
+        const dep=departments.find(d=>d.id===idA);
+        if(!dep) return;
+        editingDepartmentId=idA;
+        title.textContent="កែប្រែផ្នែក";nameField.style.display="block";depField.style.display="none";empField.style.display="none";
+        document.getElementById("departmentName").value=dep.name||"";save.innerHTML=`<i class="fa-solid fa-pen"></i> រក្សាទុកការកែប្រែ`;
+    }else if(mode==="editEmployee"){
+        const dep=departments.find(d=>d.id===idA);
+        const emp=dep && (dep.employees||[]).find(e=>e.id===idB);
+        if(!dep || !emp) return;
+        editingEmployeeDeptId=idA;editingEmployeeId=idB;
+        title.textContent="កែប្រែបុគ្គលិក";nameField.style.display="none";depField.style.display="none";empField.style.display="block";
+        document.getElementById("employeeName").value=emp.name||"";save.innerHTML=`<i class="fa-solid fa-pen"></i> រក្សាទុកការកែប្រែ`;
     }else{
         title.textContent="បន្ថែមបុគ្គលិក";nameField.style.display="none";depField.style.display="block";empField.style.display="block";
         document.getElementById("employeeDepartment").value="";document.getElementById("employeeName").value="";save.innerHTML=`<i class="fa-solid fa-user-plus"></i> រក្សាទុកបុគ្គលិក`;
@@ -1939,6 +2090,42 @@ async function saveDepartmentForm(){
                 details: `បន្ថែមផ្នែក ${name}`
             });
             alert("បានបន្ថែមផ្នែកដោយជោគជ័យ។");
+        }else if(departmentModalMode==="editDepartment"){
+            const dep=departments.find(d=>d.id===editingDepartmentId);
+            if(!dep) throw new Error("មិនអាចរកឃើញផ្នែក។");
+            const name=document.getElementById("departmentName").value.trim();
+            if(!name) throw new Error("សូមបញ្ចូលឈ្មោះផ្នែក។");
+            if(departments.some(d=>d.id!==dep.id && String(d.name||"").trim().toLowerCase()===name.toLowerCase())) throw new Error("ផ្នែកនេះមានរួចហើយ។");
+            const oldName=dep.name;
+            await db.collection("departments").doc(dep.id).update({name});
+            await writeAuditLog({
+                action: "update",
+                entity: "department",
+                entityId: dep.id,
+                entityName: name,
+                details: `កែប្រែផ្នែក "${oldName}" ទៅជា "${name}"`
+            });
+            alert("បានកែប្រែផ្នែកដោយជោគជ័យ។");
+        }else if(departmentModalMode==="editEmployee"){
+            const dep=departments.find(d=>d.id===editingEmployeeDeptId);
+            if(!dep) throw new Error("មិនអាចរកឃើញផ្នែក។");
+            const employees=Array.isArray(dep.employees)?dep.employees:[];
+            const emp=employees.find(e=>e.id===editingEmployeeId);
+            if(!emp) throw new Error("មិនអាចរកឃើញបុគ្គលិក។");
+            const name=document.getElementById("employeeName").value.trim();
+            if(!name) throw new Error("សូមបញ្ចូលឈ្មោះបុគ្គលិក។");
+            if(employees.some(e=>e.id!==emp.id && String(e.name||"").trim().toLowerCase()===name.toLowerCase())) throw new Error("បុគ្គលិកឈ្មោះនេះមានរួចហើយក្នុងផ្នែកនេះ។");
+            const oldName=emp.name;
+            const updatedEmployees=employees.map(e=>e.id===emp.id ? {...e,name} : e);
+            await db.collection("departments").doc(dep.id).update({employees:updatedEmployees});
+            await writeAuditLog({
+                action: "update",
+                entity: "employee",
+                entityId: emp.id,
+                entityName: name,
+                details: `កែប្រែឈ្មោះបុគ្គលិក "${oldName}" ទៅជា "${name}" ក្នុងផ្នែក ${dep.name}`
+            });
+            alert("បានកែប្រែបុគ្គលិកដោយជោគជ័យ។");
         }else{
             const depId=document.getElementById("employeeDepartment").value;
             const name=document.getElementById("employeeName").value.trim();
@@ -1995,7 +2182,7 @@ async function deleteDepartment(id){
 function renderDepartments(){
     const c=document.getElementById("departmentContent");if(!c)return;
     if(!departments.length){c.innerHTML=`<div class="empty"><i class="fa-solid fa-building"></i><h3>មិនទាន់មានផ្នែក</h3><p>ចុច "បន្ថែមផ្នែក" ដើម្បីបង្កើត Department។</p></div>`;return;}
-    c.innerHTML=`<div class="department-grid">${departments.map(dep=>{const es=Array.isArray(dep.employees)?dep.employees:[];return `<div class="department-card"><div class="department-card-head"><div><h3><i class="fa-solid fa-building"></i> ${escapeHtml(dep.name)}</h3><span>${es.length.toLocaleString()} នាក់</span></div><button class="action-btn delete" onclick="deleteDepartment('${dep.id}')"><i class="fa-solid fa-trash"></i></button></div><ul class="employee-list">${es.length?es.map(emp=>`<li><span class="employee-name"><i class="fa-solid fa-user"></i>${escapeHtml(emp.name)}</span><button class="employee-delete" onclick="deleteEmployee('${dep.id}','${emp.id}')"><i class="fa-solid fa-trash"></i></button></li>`).join(""):`<li class="department-empty">មិនទាន់មានបុគ្គលិកក្នុងផ្នែកនេះ</li>`}</ul></div>`;}).join("")}</div>`;
+    c.innerHTML=`<div class="department-grid">${departments.map(dep=>{const es=Array.isArray(dep.employees)?dep.employees:[];return `<div class="department-card"><div class="department-card-head"><div><h3><i class="fa-solid fa-building"></i> ${escapeHtml(dep.name)}</h3><span>${es.length.toLocaleString()} នាក់</span></div><div class="department-card-head-actions"><button class="action-btn edit" title="កែប្រែឈ្មោះផ្នែក" onclick="openDepartmentModal('editDepartment','${dep.id}')"><i class="fa-solid fa-pen"></i></button><button class="action-btn delete" title="លុបផ្នែក" onclick="deleteDepartment('${dep.id}')"><i class="fa-solid fa-trash"></i></button></div></div><ul class="employee-list">${es.length?es.map(emp=>`<li><span class="employee-name"><i class="fa-solid fa-user"></i>${escapeHtml(emp.name)}</span><span class="employee-actions"><button class="employee-edit" title="កែប្រែឈ្មោះបុគ្គលិក" onclick="openDepartmentModal('editEmployee','${dep.id}','${emp.id}')"><i class="fa-solid fa-pen"></i></button><button class="employee-delete" title="លុបបុគ្គលិក" onclick="deleteEmployee('${dep.id}','${emp.id}')"><i class="fa-solid fa-trash"></i></button></span></li>`).join(""):`<li class="department-empty">មិនទាន់មានបុគ្គលិកក្នុងផ្នែកនេះ</li>`}</ul></div>`;}).join("")}</div>`;
 }
 
 /* =====================================================

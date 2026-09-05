@@ -1259,6 +1259,88 @@ tbody tr:last-child td{
 }
 
 /* =========================
+   THEME COLOR PICKER
+========================= */
+
+.theme-color-wrap{
+    position:relative;
+}
+
+.theme-color-panel{
+    position:absolute;
+    top:50px;
+    right:0;
+    width:230px;
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:12px;
+    box-shadow:0 12px 28px rgba(0,0,0,.18);
+    display:none;
+    z-index:50;
+    padding:14px;
+}
+
+.theme-color-panel.show{
+    display:block;
+}
+
+.theme-color-panel .notif-panel-header{
+    color:var(--primary-dark);
+    border-bottom-color:var(--border);
+}
+
+.theme-color-presets{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:10px;
+    margin-bottom:14px;
+}
+
+.theme-color-swatch{
+    width:100%;
+    aspect-ratio:1/1;
+    border-radius:9px;
+    border:2px solid transparent;
+    cursor:pointer;
+    padding:0;
+    transition:transform .15s ease, border-color .15s ease;
+}
+
+.theme-color-swatch:hover{
+    transform:scale(1.08);
+}
+
+.theme-color-swatch.active{
+    border-color:var(--text);
+    box-shadow:0 0 0 2px var(--card), 0 0 0 4px var(--primary);
+}
+
+.theme-color-custom{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    margin-bottom:12px;
+    font-size:12px;
+    color:var(--text-soft);
+}
+
+.theme-color-custom input[type="color"]{
+    width:42px;
+    height:30px;
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:2px;
+    background:var(--card);
+    cursor:pointer;
+}
+
+.theme-color-panel .btn-secondary{
+    width:100%;
+    text-align:center;
+}
+
+/* =========================
    NOTIFICATION BELL
 ========================= */
 
@@ -1969,6 +2051,12 @@ body.dark .department-card-head h3{color:#C9CDFA;}
 .employee-list{list-style:none;padding:12px 0 0;margin:0;}
 .employee-list li{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px dashed var(--border);font-size:13px;}
 .employee-list li:last-child{border-bottom:none;}
+.department-card-head-actions{display:flex;align-items:center;gap:8px;}
+.department-card-head-actions .action-btn{margin-left:0;}
+.action-btn.edit{background:var(--btn-primary-gradient);}
+.employee-actions{display:flex;align-items:center;gap:4px;}
+.employee-edit{color:var(--primary);border:none;background:transparent;cursor:pointer;padding:5px 7px;border-radius:6px;}
+.employee-edit:hover{background:var(--primary-light);}
 .employee-name{display:flex;align-items:center;gap:8px;}
 .employee-name i{color:var(--primary);}
 .employee-delete{color:var(--danger);border:none;background:transparent;cursor:pointer;padding:5px 7px;border-radius:6px;}
