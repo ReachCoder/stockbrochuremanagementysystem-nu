@@ -3377,6 +3377,8 @@ body.role-staff #btnAddStockIn,
 body.role-staff #btnAddDepartment,
 body.role-staff #btnAddEmployee,
 body.role-staff .action-btn,
+body.role-staff .employee-edit,
+body.role-staff .employee-delete,
 body.role-staff #btnSaveOperator,
 body.role-staff .admin-only{
     display:none !important;
