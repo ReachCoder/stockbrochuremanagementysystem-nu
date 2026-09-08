@@ -432,6 +432,9 @@ let stockOutActiveTab = "transactions"; // "transactions" | "requests"
 let stockIns = [];
 let stockInEditingId = null;
 let siMode = "existing";
+let distributions = [];
+let distSelections = {}; // { brochureId: { checked:bool, qty:number } }
+let viewingDistributionId = null;
 const DEFAULT_LOW_STOCK_THRESHOLD = 50;
 function getLowStockThreshold(){
     const n = Number(localStorage.getItem("lowStockThreshold"));
@@ -449,7 +452,8 @@ const tableState = {
     stock:    { sortKey: "name", sortDir: "asc",  page: 1, pageSize: 25 },
     stockOut: { sortKey: "date", sortDir: "desc", page: 1, pageSize: 20 },
     stockIn:  { sortKey: "date", sortDir: "desc", page: 1, pageSize: 20 },
-    stockOutRequests: { sortKey: "requestedAt", sortDir: "desc", page: 1, pageSize: 20 }
+    stockOutRequests: { sortKey: "requestedAt", sortDir: "desc", page: 1, pageSize: 20 },
+    distributions: { page: 1, pageSize: 10 }
 };
 
 function sortList(list, key, dir, type){
@@ -518,6 +522,7 @@ function setTablePage(table, page){
     else if(table === "stockOut") renderStockOut();
     else if(table === "stockIn") renderStockIn();
     else if(table === "stockOutRequests") renderStockOutRequests();
+    else if(table === "distributions") renderDistributions();
 }
 
 function setTablePageSize(table, size){
@@ -585,6 +590,7 @@ const titles = {
     stock:"ស្តុក Brochure",
     stockout:"Stock Out",
     stockin:"Stock In",
+    distribution:"ចែកចាយ Brochure",
     departments:"Department",
 
     years:"តាមឆ្នាំ",
@@ -635,6 +641,14 @@ function goPage(page){
             window._stockInsListening = true;
         }
         renderStockIn();
+    }
+
+    if(page === "distribution"){
+        if(!window._distributionsListening){
+            listenDistributions();
+            window._distributionsListening = true;
+        }
+        renderDistributions();
     }
 
     if(page === "audit"){
@@ -3122,6 +3136,405 @@ function renderStockIn(){
 
 
 /* =====================================================
+   DISTRIBUTION (ចែកចាយ Brochure ជាថង់)
+   - ជ្រើសរើសតែ Brochure ដែលចែក + កំណត់ចំនួនសរុបយកចេញនីមួយៗ
+   - កំណត់ចំនួនថង់ត្រូវចែក → គណនាចំនួនក្នុងមួយថង់ដោយស្វ័យប្រវត្តិ
+   - កាត់ស្តុកដើមតាមចំនួនសរុបដែលបានកំណត់សម្រាប់ brochure នីមួយៗ
+===================================================== */
+let _unsubDistributions = null;
+function listenDistributions(){
+    if(_unsubDistributions){ _unsubDistributions(); _unsubDistributions = null; }
+    _unsubDistributions = db.collection("distributions")
+        .orderBy("createdAt", "desc")
+        .limit(300)
+        .onSnapshot(snapshot => {
+            distributions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            renderDistributions();
+        }, error => {
+            console.error("Distributions listener error:", error);
+        });
+}
+
+function openDistributionModal(){
+    if(!requireAdmin("ចែកចាយ Brochure")) return;
+    if(!items.length){ alert("មិនទាន់មាន Brochure ក្នុងស្តុកទេ។"); return; }
+    distSelections = {};
+    document.getElementById("distDate").value = todayISO();
+    document.getElementById("distBagCount").value = "";
+    document.getElementById("distNote").value = "";
+    document.getElementById("distItemSearch").value = "";
+    document.getElementById("distributionErr").classList.remove("show");
+    document.getElementById("distributionErr").textContent = "";
+    renderDistributionItemList();
+    updateDistributionSummary();
+    document.getElementById("distributionOverlay").classList.add("show");
+}
+function closeDistributionModal(){
+    document.getElementById("distributionOverlay").classList.remove("show");
+}
+
+function renderDistributionItemList(){
+    const wrap = document.getElementById("distItemList");
+    if(!wrap) return;
+    const q = (document.getElementById("distItemSearch")?.value || "").toLowerCase().trim();
+    const list = [...items]
+        .filter(i => !q || String(i.name||"").toLowerCase().includes(q) || String(i.year||"").toLowerCase().includes(q))
+        .sort((a,b) => String(a.name).localeCompare(String(b.name), "km"));
+    if(!list.length){
+        wrap.innerHTML = `<div class="empty-mini">រកមិនឃើញ Brochure</div>`;
+        return;
+    }
+    wrap.innerHTML = list.map(i => {
+        const sel = distSelections[i.id] || { checked:false, qty:"" };
+        const stock = Number(i.unit || 0);
+        return `<div class="dist-select-row" data-id="${escapeHtml(i.id)}">
+            <label class="checkbox-label dist-select-name">
+                <input type="checkbox" data-role="check" ${sel.checked?"checked":""} ${stock<=0?"disabled":""} onchange="onDistRowToggle('${i.id}')">
+                <span>${escapeHtml(i.name)} <small>(${escapeHtml(i.year)} • ស្តុក ${stock.toLocaleString()})</small></span>
+            </label>
+            <input type="number" class="dist-qty-input" data-role="qty" min="1" step="1" max="${stock}" placeholder="ចំនួនសរុប" value="${sel.qty||""}" ${sel.checked?"":"disabled"} oninput="onDistQtyInput('${i.id}', this.value)">
+            <span class="dist-perbag" data-role="perbag">—</span>
+        </div>`;
+    }).join("");
+    recalcDistributionPerBag();
+}
+
+function onDistRowToggle(id){
+    const row = document.querySelector(`.dist-select-row[data-id="${CSS.escape(id)}"]`);
+    const checked = row?.querySelector('[data-role="check"]')?.checked;
+    const qtyInput = row?.querySelector('[data-role="qty"]');
+    if(!distSelections[id]) distSelections[id] = { checked:false, qty:"" };
+    distSelections[id].checked = !!checked;
+    if(qtyInput) qtyInput.disabled = !checked;
+    if(checked && qtyInput) qtyInput.focus();
+    recalcDistributionPerBag();
+}
+
+function onDistQtyInput(id, value){
+    if(!distSelections[id]) distSelections[id] = { checked:true, qty:"" };
+    distSelections[id].qty = value;
+    recalcDistributionPerBag();
+}
+
+function recalcDistributionPerBag(){
+    const bagCount = parseInt(document.getElementById("distBagCount")?.value, 10);
+    document.querySelectorAll(".dist-select-row").forEach(row => {
+        const id = row.dataset.id;
+        const sel = distSelections[id];
+        const perBagEl = row.querySelector('[data-role="perbag"]');
+        const qtyInput = row.querySelector('[data-role="qty"]');
+        const item = items.find(i => i.id === id);
+        const stock = Number(item?.unit || 0);
+        const qty = Number(sel?.qty || 0);
+        row.classList.remove("dist-row-invalid");
+        if(sel?.checked && qty > 0 && Number.isInteger(bagCount) && bagCount > 0){
+            const perBag = qty / bagCount;
+            perBagEl.textContent = `${perBag.toLocaleString(undefined,{maximumFractionDigits:2})} / ថង់`;
+        }else{
+            perBagEl.textContent = "—";
+        }
+        if(sel?.checked && qty > stock){
+            row.classList.add("dist-row-invalid");
+        }
+        if(qtyInput && document.activeElement !== qtyInput){
+            qtyInput.value = sel?.qty || "";
+        }
+    });
+    updateDistributionSummary();
+}
+
+function getDistributionSelectedItems(){
+    return Object.keys(distSelections)
+        .filter(id => distSelections[id]?.checked && Number(distSelections[id]?.qty) > 0)
+        .map(id => {
+            const item = items.find(i => i.id === id);
+            return item ? { id, item, qty: Number(distSelections[id].qty) } : null;
+        })
+        .filter(Boolean);
+}
+
+function updateDistributionSummary(){
+    const box = document.getElementById("distSummaryBox");
+    if(!box) return;
+    const bagCount = parseInt(document.getElementById("distBagCount")?.value, 10);
+    const selected = getDistributionSelectedItems();
+    if(!selected.length){
+        box.innerHTML = "សូមជ្រើសរើស Brochure យ៉ាងតិចមួយ ហើយបញ្ចូលចំនួនសរុប ដើម្បីមើលសរុប។";
+        return;
+    }
+    const totalQty = selected.reduce((a,x) => a + x.qty, 0);
+    const overStock = selected.some(x => x.qty > Number(x.item.unit || 0));
+    let html = `ប្រភេទដែលជ្រើសរើស: <strong>${selected.length}</strong> &nbsp;|&nbsp; ចំនួនសរុបត្រូវយកចេញ: <strong>${totalQty.toLocaleString()}</strong> ក្បាល`;
+    if(Number.isInteger(bagCount) && bagCount > 0){
+        html += ` &nbsp;|&nbsp; ចំនួនថង់: <strong>${bagCount.toLocaleString()}</strong>`;
+    }
+    if(overStock){
+        html += `<br><span style="color:#e5484d;">⚠ មាន Brochure មួយចំនួនស្នើចំនួនលើសពីស្តុកដែលមាន សូមកែចំនួន។</span>`;
+    }
+    box.innerHTML = html;
+}
+
+async function saveDistribution(){
+    const err = document.getElementById("distributionErr");
+    err.classList.remove("show"); err.textContent = "";
+    const date = document.getElementById("distDate").value;
+    const bagCount = parseInt(document.getElementById("distBagCount").value, 10);
+    const note = document.getElementById("distNote").value.trim();
+    const selected = getDistributionSelectedItems();
+    if(!date || !Number.isInteger(bagCount) || bagCount <= 0){
+        err.textContent = "សូមបំពេញ ថ្ងៃចែកចាយ និងចំនួនថង់ត្រូវចែកឱ្យបានត្រឹមត្រូវ។";
+        err.classList.add("show");
+        return;
+    }
+    if(!selected.length){
+        err.textContent = "សូមជ្រើសរើស Brochure យ៉ាងតិចមួយ ហើយបញ្ចូលចំនួនសរុបត្រូវយកចេញ។";
+        err.classList.add("show");
+        return;
+    }
+    for(const s of selected){
+        if(!Number.isInteger(s.qty) || s.qty <= 0){
+            err.textContent = `ចំនួនសរុបសម្រាប់ "${s.item.name}" មិនត្រឹមត្រូវទេ។`;
+            err.classList.add("show");
+            return;
+        }
+    }
+    const distRef = db.collection("distributions").doc();
+    try{
+        const result = await db.runTransaction(async tx => {
+            const stockRefs = selected.map(s => db.collection(COLLECTION).doc(s.id));
+            const snaps = await Promise.all(stockRefs.map(ref => tx.get(ref)));
+            const finalItems = [];
+            for(let idx = 0; idx < selected.length; idx++){
+                const s = selected[idx];
+                const snap = snaps[idx];
+                if(!snap.exists){ const e = new Error("ITEM_NOT_FOUND"); e.name2 = s.item.name; throw e; }
+                const fresh = snap.data();
+                const available = Number(fresh.unit || 0);
+                if(s.qty > available){
+                    const e = new Error("NOT_ENOUGH_STOCK");
+                    e.name2 = fresh.name || s.item.name;
+                    e.available = available;
+                    e.requested = s.qty;
+                    throw e;
+                }
+                finalItems.push({
+                    brochureId: s.id,
+                    brochureName: fresh.name || s.item.name,
+                    year: fresh.year || s.item.year || "",
+                    quantity: s.qty,
+                    perBag: bagCount > 0 ? Number((s.qty / bagCount).toFixed(2)) : 0
+                });
+            }
+            finalItems.forEach((fi, idx) => {
+                tx.update(stockRefs[idx], { unit: Number(snaps[idx].data().unit || 0) - fi.quantity });
+            });
+            const totalQuantity = finalItems.reduce((a,x) => a + x.quantity, 0);
+            tx.set(distRef, {
+                date, bagCount, note,
+                items: finalItems,
+                totalQuantity,
+                createdBy: getOperatorName(),
+                createdAt: Date.now()
+            });
+            return { finalItems, totalQuantity };
+        });
+        await writeAuditLog({
+            action: "create",
+            entity: "distribution",
+            entityId: distRef.id,
+            entityName: `ចែកចាយ ${date}`,
+            details: `ចែក ${result.finalItems.length} Brochure | សរុប ${result.totalQuantity.toLocaleString()} ក្បាល | ចំនួនថង់ ${bagCount.toLocaleString()}`
+        });
+        closeDistributionModal();
+        alert(`ចែកចាយបានជោគជ័យ!\n\nចំនួន Brochure: ${result.finalItems.length}\nសរុបយកចេញ: ${result.totalQuantity.toLocaleString()} ក្បាល\nចំនួនថង់: ${bagCount.toLocaleString()}\n\n${result.finalItems.map(fi=>`• ${fi.brochureName}: ${fi.quantity.toLocaleString()} ក្បាល (${fi.perBag.toLocaleString(undefined,{maximumFractionDigits:2})}/ថង់)`).join("\n")}`);
+        goPage("distribution");
+    }catch(e){
+        console.error(e);
+        if(e.message === "NOT_ENOUGH_STOCK") err.textContent = `Not enough stock! "${e.name2}" ស្តុកមិនគ្រប់ទេ។ ស្តុកដែលមាន: ${Number(e.available||0).toLocaleString()} | ស្នើ: ${Number(e.requested||0).toLocaleString()}`;
+        else if(e.message === "ITEM_NOT_FOUND") err.textContent = `Brochure "${e.name2}" លែងមានក្នុងស្តុកទៀតហើយ។`;
+        else err.textContent = "មិនអាចរក្សាទុកការចែកចាយបានទេ។ សូមព្យាយាមម្តងទៀត។";
+        err.classList.add("show");
+    }
+}
+
+function renderDistributions(){
+    const c = document.getElementById("distributionContent");
+    if(!c) return;
+    const q = (document.getElementById("distributionSearch")?.value || "").toLowerCase().trim();
+    let list = q ? distributions.filter(d =>
+        String(d.date||"").toLowerCase().includes(q) ||
+        String(d.note||"").toLowerCase().includes(q) ||
+        (d.items||[]).some(it => String(it.brochureName||"").toLowerCase().includes(q))
+    ) : [...distributions];
+    const totalAll = list.reduce((a,x) => a + Number(x.totalQuantity||0), 0);
+    if(!list.length){
+        c.innerHTML = `<div class="stockout-summary"><div class="stockout-summary-card"><small>ការចែកចាយសរុប</small><strong>0</strong></div><div class="stockout-summary-card"><small>ចំនួនយកចេញសរុប</small><strong>0</strong></div><div class="stockout-summary-card"><small>ស្ថានភាព</small><strong>—</strong></div></div><div class="empty"><i class="fa-solid fa-boxes-packing"></i><h3>មិនទាន់មានការចែកចាយទេ</h3><p>ចុច "ការចែកចាយថ្មី" ដើម្បីបែងចែក Brochure ជាថង់។</p></div>`;
+        return;
+    }
+    const st = tableState.distributions;
+    list.sort((a,b) => Number(b.createdAt||0) - Number(a.createdAt||0));
+    const pg = paginateList(list, st.page, st.pageSize);
+    st.page = pg.page;
+    const rows = pg.slice;
+    c.innerHTML = `<div class="stockout-summary"><div class="stockout-summary-card"><small>ការចែកចាយសរុប</small><strong>${list.length.toLocaleString()}</strong></div><div class="stockout-summary-card"><small>ចំនួនយកចេញសរុប</small><strong>${totalAll.toLocaleString()}</strong></div><div class="stockout-summary-card"><small>បង្ហាញ</small><strong>${rows.length.toLocaleString()}</strong></div></div><div class="data-table-wrap"><table><thead><tr><th>N°</th><th>ថ្ងៃចែកចាយ</th><th>ចំនួនប្រភេទ Brochure</th><th>ចំនួនថង់</th><th>សរុបយកចេញ</th><th>ចំណាំ</th><th>សកម្មភាព</th></tr></thead><tbody>${rows.map((x,i) => `<tr><td>${pg.start+i+1}</td><td>${escapeHtml(formatDateDisplay(x.date))}</td><td>${(x.items||[]).length.toLocaleString()}</td><td>${Number(x.bagCount||0).toLocaleString()}</td><td class="unit">${Number(x.totalQuantity||0).toLocaleString()}</td><td>${escapeHtml(x.note||"")}</td><td class="actions"><button class="action-btn" onclick="viewDistribution('${x.id}')"><i class="fa-solid fa-eye"></i> មើល</button><button class="action-btn" onclick="printDistribution('${x.id}')"><i class="fa-solid fa-print"></i> Print</button><button class="action-btn delete" onclick="deleteDistribution('${x.id}')"><i class="fa-solid fa-trash"></i> លុប</button></td></tr>`).join("")}</tbody></table></div>${buildPagerHtml("distributions", pg)}`;
+}
+
+function viewDistribution(id){
+    const d = distributions.find(x => x.id === id);
+    if(!d) return;
+    viewingDistributionId = id;
+    const content = document.getElementById("distributionViewContent");
+    content.innerHTML = `
+        <div class="stock-info-box">ថ្ងៃចែកចាយ: <strong>${escapeHtml(formatDateDisplay(d.date))}</strong> &nbsp;|&nbsp; ចំនួនថង់: <strong>${Number(d.bagCount||0).toLocaleString()}</strong> &nbsp;|&nbsp; សរុបយកចេញ: <strong>${Number(d.totalQuantity||0).toLocaleString()}</strong> ក្បាល${d.note?`<br>ចំណាំ: ${escapeHtml(d.note)}`:""}</div>
+        <div class="data-table-wrap" style="padding:12px 0 0;"><table><thead><tr><th>Brochure</th><th>ឆ្នាំ</th><th>ចំនួនសរុប</th><th>ក្នុងមួយថង់</th></tr></thead><tbody>${(d.items||[]).map(it => `<tr><td><strong>${escapeHtml(it.brochureName)}</strong></td><td>${escapeHtml(it.year)}</td><td class="unit">${Number(it.quantity||0).toLocaleString()}</td><td class="unit">${Number(it.perBag||0).toLocaleString(undefined,{maximumFractionDigits:2})}</td></tr>`).join("")}</tbody></table></div>`;
+    document.getElementById("distributionViewOverlay").classList.add("show");
+}
+function closeDistributionView(){
+    document.getElementById("distributionViewOverlay").classList.remove("show");
+    viewingDistributionId = null;
+}
+
+/* =====================================================
+   PRINT DISTRIBUTION (ចែក Brochure ជាថង់)
+===================================================== */
+function buildDistributionPrintTable(d){
+    const rows = d.items || [];
+    const totalTypes = rows.length;
+    const totalQty = Number(d.totalQuantity || rows.reduce((s,it) => s + Number(it.quantity||0), 0));
+
+    const tableHtml = `
+        <div class="group">
+            <div class="group-band">
+                <div>
+                    <div class="group-year">ថ្ងៃចែកចាយ៖ ${escapeHtml(formatDateDisplay(d.date))}</div>
+                    <div class="group-sub">ចំនួនថង់៖ ${Number(d.bagCount||0).toLocaleString()} &nbsp;•&nbsp; ${totalTypes} ប្រភេទ Brochure</div>
+                </div>
+                <div style="color:white;font-weight:700;font-size:13px">
+                    សរុបយកចេញ៖ ${totalQty.toLocaleString()} ក្បាល
+                </div>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 40px; text-align:center;">ល.រ</th>
+                        <th>ឈ្មោះ Brochure</th>
+                        <th style="width: 80px; text-align:center;">ឆ្នាំ</th>
+                        <th style="width: 110px; text-align:right;">ចំនួនសរុប</th>
+                        <th style="width: 110px; text-align:right;">ក្នុងមួយថង់</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rows.map((it,index) => `
+                        <tr>
+                            <td style="text-align:center;">${index+1}</td>
+                            <td><strong>${escapeHtml(it.brochureName)}</strong></td>
+                            <td style="text-align:center;">${escapeHtml(it.year)}</td>
+                            <td class="unit" style="text-align:right;">${Number(it.quantity||0).toLocaleString()}</td>
+                            <td class="unit" style="text-align:right;">${Number(it.perBag||0).toLocaleString(undefined,{maximumFractionDigits:2})}</td>
+                        </tr>
+                    `).join("")}
+                </tbody>
+            </table>
+        </div>
+    `;
+
+    const footerHtml = `
+        <div class="print-footer-summary">
+            <div class="sum-item">ចំនួនប្រភេទ Brochure៖ <strong>${totalTypes.toLocaleString()} ប្រភេទ</strong></div>
+            <div class="sum-item">សរុបយកចេញ៖ <strong>${totalQty.toLocaleString()} ក្បាល</strong></div>
+            <div class="sum-item">ប្រព័ន្ធ៖ <strong>Brochure Stock Management</strong></div>
+        </div>
+        ${d.note ? `<div class="print-hidden-note">ចំណាំ៖ ${escapeHtml(d.note)}</div>` : ""}
+        <div class="print-sign-section">
+            <div class="print-sign-box">
+                <div class="sign-title">អ្នករៀបចំ (Prepared By)</div>
+                <div class="sign-line"></div>
+            </div>
+            <div class="print-sign-box">
+                <div class="sign-title">អ្នកទទួល (Received By)</div>
+                <div class="sign-line"></div>
+            </div>
+        </div>
+    `;
+
+    document.getElementById("printFooter").innerHTML = footerHtml;
+    return tableHtml;
+}
+
+function printDistribution(id){
+    const d = distributions.find(x => x.id === id) || (viewingDistributionId ? distributions.find(x => x.id === viewingDistributionId) : null);
+    if(!d){ alert("រកមិនឃើញទិន្នន័យការចែកចាយនេះទេ។"); return; }
+
+    const now = new Date();
+    const dateStr = now.toLocaleDateString("km-KH", {year:"numeric",month:"long",day:"numeric"});
+    const timeStr = now.toLocaleTimeString("km-KH", {hour:'2-digit', minute:'2-digit'});
+
+    const printArea = document.getElementById("printArea");
+    if(!printArea) return;
+
+    printArea.innerHTML = `
+        <div class="print-header-container">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <img src="assets/logo_NU.png" class="print-logo-img" alt="Logo">
+                <div class="print-header-left">
+                    <h1>របាយការណ៍ការចែកចាយ BROCHURE</h1>
+                    <p>ប្រព័ន្ធគ្រប់គ្រងស្តុក Brochure (Brochure Stock Management)</p>
+                </div>
+            </div>
+            <div class="print-header-right">
+                <div>កាលបរិច្ឆេទបោះពុម្ព៖ <strong>${dateStr}</strong></div>
+                <div>ម៉ោង៖ <strong>${timeStr}</strong></div>
+            </div>
+        </div>
+        <div id="printTableContent"></div>
+        <div id="printFooter"></div>
+    `;
+
+    const tableHtml = buildDistributionPrintTable(d);
+    document.getElementById("printTableContent").innerHTML = tableHtml;
+
+    setTimeout(() => {
+        window.print();
+    }, 250);
+}
+
+async function deleteDistribution(id){
+    if(!requireAdmin("លុបការចែកចាយ")) return;
+    const record = distributions.find(x => x.id === id);
+    if(!record) return;
+    const ok = confirm(`តើអ្នកចង់លុបការចែកចាយនេះមែនទេ?\n\nថ្ងៃ: ${formatDateDisplay(record.date)}\nសរុបយកចេញ: ${Number(record.totalQuantity||0).toLocaleString()} ក្បាល\n\nស្តុកនឹងត្រូវបានបន្ថែមមកវិញដោយស្វ័យប្រវត្តិ។`);
+    if(!ok) return;
+    const distRef = db.collection("distributions").doc(id);
+    try{
+        await db.runTransaction(async tx => {
+            const distSnap = await tx.get(distRef);
+            if(!distSnap.exists) return;
+            const items2 = distSnap.data().items || [];
+            const stockRefs = items2.map(it => db.collection(COLLECTION).doc(it.brochureId));
+            const snaps = await Promise.all(stockRefs.map(ref => tx.get(ref)));
+            snaps.forEach((snap, idx) => {
+                if(snap.exists){
+                    tx.update(stockRefs[idx], { unit: Number(snap.data().unit || 0) + Number(items2[idx].quantity || 0) });
+                }
+            });
+            tx.delete(distRef);
+        });
+        await writeAuditLog({
+            action: "delete",
+            entity: "distribution",
+            entityId: id,
+            entityName: `ចែកចាយ ${record.date}`,
+            details: `លុបការចែកចាយ | សរុប ${Number(record.totalQuantity||0).toLocaleString()} ក្បាល | បន្ថែមស្តុកមកវិញ`
+        });
+        closeDistributionView();
+    }catch(error){
+        console.error(error);
+        alert("មិនអាចលុបការចែកចាយនេះបានទេ។ សូមព្យាយាមម្តងទៀត។");
+    }
+}
+
+
+/* =====================================================
    LOW STOCK ALERTS + EMAIL TO ADMIN
 ===================================================== */
 function getLowStockItems(){
@@ -4734,6 +5147,17 @@ document.getElementById("siImage")?.addEventListener("change", e => {
     reader.readAsDataURL(file);
 });
 document.getElementById("stockInSearch")?.addEventListener("input",()=>{tableState.stockIn.page=1;renderStockIn();});
+document.getElementById("btnAddDistribution")?.addEventListener("click",()=>openDistributionModal());
+document.getElementById("btnCancelDistribution")?.addEventListener("click",closeDistributionModal);
+document.getElementById("btnSaveDistribution")?.addEventListener("click",saveDistribution);
+document.getElementById("distBagCount")?.addEventListener("input",recalcDistributionPerBag);
+document.getElementById("distItemSearch")?.addEventListener("input",renderDistributionItemList);
+document.getElementById("distributionSearch")?.addEventListener("input",()=>{tableState.distributions.page=1;renderDistributions();});
+document.getElementById("distributionOverlay")?.addEventListener("click",e=>{if(e.target.id==="distributionOverlay")closeDistributionModal();});
+document.getElementById("btnCloseDistributionView")?.addEventListener("click",closeDistributionView);
+document.getElementById("btnPrintDistributionView")?.addEventListener("click",()=>{if(viewingDistributionId)printDistribution(viewingDistributionId);});
+document.getElementById("btnDeleteDistributionView")?.addEventListener("click",()=>{if(viewingDistributionId)deleteDistribution(viewingDistributionId);});
+document.getElementById("distributionViewOverlay")?.addEventListener("click",e=>{if(e.target.id==="distributionViewOverlay")closeDistributionView();});
 document.getElementById("btnBackupJson")?.addEventListener("click",backupAllDataJson);
 document.getElementById("stockInOverlay")?.addEventListener("click",e=>{if(e.target.id==="stockInOverlay")closeStockInModal();});
 document.getElementById("lowStockBtn")?.addEventListener("click",e=>{e.stopPropagation();document.getElementById("lowStockPanel")?.classList.toggle("show");});

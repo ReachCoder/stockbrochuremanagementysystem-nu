@@ -133,6 +133,13 @@
         </button>
 
 
+        <button class="menu-item admin-only"
+                data-page="distribution">
+            <i class="fa-solid fa-boxes-packing"></i>
+            <span>ចែកចាយ Brochure</span>
+        </button>
+
+
         <button class="menu-item"
                 data-page="departments">
             <i class="fa-solid fa-building"></i>
@@ -714,6 +721,25 @@
 </section>
 
 <!-- =====================================================
+     DISTRIBUTION PAGE (ចែកចាយ Brochure ជាថង់)
+===================================================== -->
+<section class="page" id="distribution">
+    <div class="card">
+        <div class="card-header">
+            <div>
+                <h3><i class="fa-solid fa-boxes-packing"></i> ចែកចាយ Brochure ជាថង់</h3>
+                <div class="page-hint">ជ្រើសរើស Brochure ដែលត្រូវចែក • កំណត់ចំនួនសរុប • កំណត់ចំនួនថង់ • ប្រព័ន្ធគណនាចំនួនក្នុងមួយថង់ ហើយកាត់ស្តុកដោយស្វ័យប្រវត្តិ</div>
+            </div>
+            <div class="search">
+                <input type="text" id="distributionSearch" placeholder="ស្វែងរកការចែកចាយ...">
+                <button class="btn-add" id="btnAddDistribution"><i class="fa-solid fa-plus"></i> ការចែកចាយថ្មី</button>
+            </div>
+        </div>
+        <div id="distributionContent"><div class="empty">កំពុងផ្ទុកទិន្នន័យ...</div></div>
+    </div>
+</section>
+
+<!-- =====================================================
      DEPARTMENT PAGE
 ===================================================== -->
 <section class="page" id="departments">
@@ -1230,6 +1256,47 @@
 </div>
 
 
+
+<!-- =====================================================
+     DISTRIBUTION MODAL (ចែកចាយ Brochure ជាថង់)
+===================================================== -->
+<div class="overlay" id="distributionOverlay">
+    <div class="modal modal-wide">
+        <h2>ការចែកចាយ Brochure ថ្មី</h2>
+        <div class="field"><label>ថ្ងៃចែកចាយ</label><input type="date" id="distDate"></div>
+        <div class="field">
+            <label>ចំនួនថង់ត្រូវចែក (ចំនួនអ្នកទទួល)</label>
+            <input type="number" id="distBagCount" min="1" step="1" placeholder="ឧ. 50">
+        </div>
+        <div class="field">
+            <label>ជ្រើសរើស Brochure ដែលត្រូវចែក ហើយកំណត់ចំនួនសរុបយកចេញ</label>
+            <input type="text" id="distItemSearch" class="dist-item-search" placeholder="ស្វែងរក Brochure...">
+            <div class="dist-select-list" id="distItemList"></div>
+        </div>
+        <div class="stock-info-box" id="distSummaryBox">សូមជ្រើសរើស Brochure យ៉ាងតិចមួយ ដើម្បីមើលសរុប។</div>
+        <div class="field"><label>ចំណាំ (មិនចាំបាច់)</label><input type="text" id="distNote" placeholder="ឧ. ចែកកម្មវិធីប្រចាំឆ្នាំ ២០២៦"></div>
+        <div class="err" id="distributionErr"></div>
+        <div class="modal-actions">
+            <button class="btn-cancel" id="btnCancelDistribution">បោះបង់</button>
+            <button class="btn-save" id="btnSaveDistribution"><i class="fa-solid fa-floppy-disk"></i> រក្សាទុក ហើយកាត់ស្តុក</button>
+        </div>
+    </div>
+</div>
+
+<!-- =====================================================
+     DISTRIBUTION VIEW MODAL
+===================================================== -->
+<div class="overlay" id="distributionViewOverlay">
+    <div class="modal modal-wide">
+        <h2>លម្អិតការចែកចាយ</h2>
+        <div id="distributionViewContent"></div>
+        <div class="modal-actions">
+            <button class="btn-cancel" id="btnCloseDistributionView">បិទ</button>
+            <button class="btn-secondary" id="btnPrintDistributionView"><i class="fa-solid fa-print"></i> Print</button>
+            <button class="btn-cancel dist-delete-btn" id="btnDeleteDistributionView"><i class="fa-solid fa-trash"></i> លុប ហើយបន្ថែមស្តុកមកវិញ</button>
+        </div>
+    </div>
+</div>
 
 <!-- =====================================================
      DEPARTMENT MODAL
