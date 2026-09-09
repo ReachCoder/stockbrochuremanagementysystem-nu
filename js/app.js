@@ -214,6 +214,15 @@ function applyRoleUI(){
         badge.className = "role-badge " + (role === "admin" ? "admin" : "staff");
     }
 
+    const welcomeNameEl = document.getElementById("welcomeUserName");
+    if(welcomeNameEl){
+        const displayName = currentUserProfile?.displayName
+            || currentUser?.displayName
+            || currentUser?.email
+            || "";
+        welcomeNameEl.textContent = displayName;
+    }
+
     // sync operator name for audit
     const opName = currentUserProfile?.displayName
         || currentUser?.displayName
@@ -434,6 +443,7 @@ let stockInEditingId = null;
 let siMode = "existing";
 let distributions = [];
 let distSelections = {}; // { brochureId: { checked:bool, qty:number } }
+let editingDistributionId = null; // null = creating new distribution, otherwise id of distribution being edited
 let viewingDistributionId = null;
 const DEFAULT_LOW_STOCK_THRESHOLD = 50;
 function getLowStockThreshold(){
@@ -3155,13 +3165,28 @@ function listenDistributions(){
         });
 }
 
-function openDistributionModal(){
-    if(!requireAdmin("ចែកចាយ Brochure")) return;
+function openDistributionModal(id){
+    if(!requireAdmin(id ? "កែការចែកចាយ" : "ចែកចាយ Brochure")) return;
     if(!items.length){ alert("មិនទាន់មាន Brochure ក្នុងស្តុកទេ។"); return; }
+
+    const record = id ? distributions.find(x => x.id === id) : null;
+    editingDistributionId = record ? id : null;
+
     distSelections = {};
-    document.getElementById("distDate").value = todayISO();
-    document.getElementById("distBagCount").value = "";
-    document.getElementById("distNote").value = "";
+    if(record){
+        (record.items || []).forEach(it => {
+            distSelections[it.brochureId] = { checked: true, qty: String(it.quantity || "") };
+        });
+    }
+
+    const titleEl = document.getElementById("distributionModalTitle");
+    if(titleEl) titleEl.textContent = record ? "កែសម្រួលការចែកចាយ" : "ការចែកចាយ Brochure ថ្មី";
+    const saveBtn = document.getElementById("btnSaveDistribution");
+    if(saveBtn) saveBtn.innerHTML = record ? '<i class="fa-solid fa-floppy-disk"></i> រក្សាទុកការកែប្រែ' : '<i class="fa-solid fa-floppy-disk"></i> រក្សាទុក ហើយកាត់ស្តុក';
+
+    document.getElementById("distDate").value = record ? record.date : todayISO();
+    document.getElementById("distBagCount").value = record ? (record.bagCount || "") : "";
+    document.getElementById("distNote").value = record ? (record.note || "") : "";
     document.getElementById("distItemSearch").value = "";
     document.getElementById("distributionErr").classList.remove("show");
     document.getElementById("distributionErr").textContent = "";
@@ -3169,8 +3194,12 @@ function openDistributionModal(){
     updateDistributionSummary();
     document.getElementById("distributionOverlay").classList.add("show");
 }
+function editDistribution(id){
+    openDistributionModal(id);
+}
 function closeDistributionModal(){
     document.getElementById("distributionOverlay").classList.remove("show");
+    editingDistributionId = null;
 }
 
 function renderDistributionItemList(){
@@ -3298,18 +3327,45 @@ async function saveDistribution(){
             return;
         }
     }
-    const distRef = db.collection("distributions").doc();
+    const isEdit = !!editingDistributionId;
+    const distRef = isEdit ? db.collection("distributions").doc(editingDistributionId) : db.collection("distributions").doc();
     try{
         const result = await db.runTransaction(async tx => {
-            const stockRefs = selected.map(s => db.collection(COLLECTION).doc(s.id));
-            const snaps = await Promise.all(stockRefs.map(ref => tx.get(ref)));
+            // ១. ប្រសិនបើកែប្រែ ត្រូវទាញយកកំណត់ត្រាចាស់ជាមុន ដើម្បីដឹងចំនួនត្រូវបន្ថែមស្តុកមកវិញ
+            let oldItems = [];
+            if(isEdit){
+                const oldSnap = await tx.get(distRef);
+                if(!oldSnap.exists){ throw new Error("DIST_NOT_FOUND"); }
+                oldItems = oldSnap.data().items || [];
+            }
+
+            // ២. ប្រមូល stock ref ទាំងអស់ដែលពាក់ព័ន្ធ (ទាំងចាស់ និងថ្មី) ដើម្បីអានតែម្តង
+            const idSet = new Set([...oldItems.map(it => it.brochureId), ...selected.map(s => s.id)]);
+            const allIds = [...idSet];
+            const allRefs = allIds.map(bid => db.collection(COLLECTION).doc(bid));
+            const allSnaps = await Promise.all(allRefs.map(ref => tx.get(ref)));
+            const stockMap = {};
+            allIds.forEach((bid, idx) => {
+                stockMap[bid] = { ref: allRefs[idx], snap: allSnaps[idx] };
+            });
+
+            // ៣. គណនាស្តុកចាប់ផ្តើម ដោយបន្ថែមចំនួនចាស់ត្រឡប់មកវិញ (បើកែប្រែ)
+            const availableAfterRestock = {};
+            allIds.forEach(bid => {
+                const entry = stockMap[bid];
+                const base = entry.snap.exists ? Number(entry.snap.data().unit || 0) : 0;
+                const oldQty = oldItems.find(it => it.brochureId === bid)?.quantity || 0;
+                availableAfterRestock[bid] = base + Number(oldQty);
+            });
+
+            // ៤. ត្រួតពិនិត្យ និងកាត់ស្តុកសម្រាប់ការជ្រើសរើសថ្មី
             const finalItems = [];
             for(let idx = 0; idx < selected.length; idx++){
                 const s = selected[idx];
-                const snap = snaps[idx];
-                if(!snap.exists){ const e = new Error("ITEM_NOT_FOUND"); e.name2 = s.item.name; throw e; }
-                const fresh = snap.data();
-                const available = Number(fresh.unit || 0);
+                const entry = stockMap[s.id];
+                if(!entry || !entry.snap.exists){ const e = new Error("ITEM_NOT_FOUND"); e.name2 = s.item.name; throw e; }
+                const fresh = entry.snap.data();
+                const available = availableAfterRestock[s.id];
                 if(s.qty > available){
                     const e = new Error("NOT_ENOUGH_STOCK");
                     e.name2 = fresh.name || s.item.name;
@@ -3325,33 +3381,48 @@ async function saveDistribution(){
                     perBag: bagCount > 0 ? Number((s.qty / bagCount).toFixed(2)) : 0
                 });
             }
-            finalItems.forEach((fi, idx) => {
-                tx.update(stockRefs[idx], { unit: Number(snaps[idx].data().unit || 0) - fi.quantity });
+
+            // ៥. គណនាស្តុកចុងក្រោយសម្រាប់ Brochure ទាំងអស់ដែលពាក់ព័ន្ធ (ថ្មី ឬលែងជ្រើសរើសទៀត)
+            allIds.forEach(bid => {
+                const entry = stockMap[bid];
+                if(!entry.snap.exists) return;
+                const finalItem = finalItems.find(fi => fi.brochureId === bid);
+                const newQty = finalItem ? finalItem.quantity : 0;
+                tx.update(entry.ref, { unit: availableAfterRestock[bid] - newQty });
             });
+
             const totalQuantity = finalItems.reduce((a,x) => a + x.quantity, 0);
-            tx.set(distRef, {
+            const payload = {
                 date, bagCount, note,
                 items: finalItems,
-                totalQuantity,
-                createdBy: getOperatorName(),
-                createdAt: Date.now()
-            });
+                totalQuantity
+            };
+            if(isEdit){
+                payload.updatedBy = getOperatorName();
+                payload.updatedAt = Date.now();
+                tx.set(distRef, payload, { merge: true });
+            }else{
+                payload.createdBy = getOperatorName();
+                payload.createdAt = Date.now();
+                tx.set(distRef, payload);
+            }
             return { finalItems, totalQuantity };
         });
         await writeAuditLog({
-            action: "create",
+            action: isEdit ? "update" : "create",
             entity: "distribution",
             entityId: distRef.id,
             entityName: `ចែកចាយ ${date}`,
-            details: `ចែក ${result.finalItems.length} Brochure | សរុប ${result.totalQuantity.toLocaleString()} ក្បាល | ចំនួនថង់ ${bagCount.toLocaleString()}`
+            details: `${isEdit ? "កែប្រែការចែកចាយ" : "ចែក"} ${result.finalItems.length} Brochure | សរុប ${result.totalQuantity.toLocaleString()} ក្បាល | ចំនួនថង់ ${bagCount.toLocaleString()}`
         });
         closeDistributionModal();
-        alert(`ចែកចាយបានជោគជ័យ!\n\nចំនួន Brochure: ${result.finalItems.length}\nសរុបយកចេញ: ${result.totalQuantity.toLocaleString()} ក្បាល\nចំនួនថង់: ${bagCount.toLocaleString()}\n\n${result.finalItems.map(fi=>`• ${fi.brochureName}: ${fi.quantity.toLocaleString()} ក្បាល (${fi.perBag.toLocaleString(undefined,{maximumFractionDigits:2})}/ថង់)`).join("\n")}`);
+        alert(`${isEdit ? "កែប្រែការចែកចាយបានជោគជ័យ!" : "ចែកចាយបានជោគជ័យ!"}\n\nចំនួន Brochure: ${result.finalItems.length}\nសរុបយកចេញ: ${result.totalQuantity.toLocaleString()} ក្បាល\nចំនួនថង់: ${bagCount.toLocaleString()}\n\n${result.finalItems.map(fi=>`• ${fi.brochureName}: ${fi.quantity.toLocaleString()} ក្បាល (${fi.perBag.toLocaleString(undefined,{maximumFractionDigits:2})}/ថង់)`).join("\n")}`);
         goPage("distribution");
     }catch(e){
         console.error(e);
         if(e.message === "NOT_ENOUGH_STOCK") err.textContent = `Not enough stock! "${e.name2}" ស្តុកមិនគ្រប់ទេ។ ស្តុកដែលមាន: ${Number(e.available||0).toLocaleString()} | ស្នើ: ${Number(e.requested||0).toLocaleString()}`;
         else if(e.message === "ITEM_NOT_FOUND") err.textContent = `Brochure "${e.name2}" លែងមានក្នុងស្តុកទៀតហើយ។`;
+        else if(e.message === "DIST_NOT_FOUND") err.textContent = "ការចែកចាយនេះលែងមានទៀតហើយ។";
         else err.textContent = "មិនអាចរក្សាទុកការចែកចាយបានទេ។ សូមព្យាយាមម្តងទៀត។";
         err.classList.add("show");
     }
@@ -3376,7 +3447,7 @@ function renderDistributions(){
     const pg = paginateList(list, st.page, st.pageSize);
     st.page = pg.page;
     const rows = pg.slice;
-    c.innerHTML = `<div class="stockout-summary"><div class="stockout-summary-card"><small>ការចែកចាយសរុប</small><strong>${list.length.toLocaleString()}</strong></div><div class="stockout-summary-card"><small>ចំនួនយកចេញសរុប</small><strong>${totalAll.toLocaleString()}</strong></div><div class="stockout-summary-card"><small>បង្ហាញ</small><strong>${rows.length.toLocaleString()}</strong></div></div><div class="data-table-wrap"><table><thead><tr><th>N°</th><th>ថ្ងៃចែកចាយ</th><th>ចំនួនប្រភេទ Brochure</th><th>ចំនួនថង់</th><th>សរុបយកចេញ</th><th>ចំណាំ</th><th>សកម្មភាព</th></tr></thead><tbody>${rows.map((x,i) => `<tr><td>${pg.start+i+1}</td><td>${escapeHtml(formatDateDisplay(x.date))}</td><td>${(x.items||[]).length.toLocaleString()}</td><td>${Number(x.bagCount||0).toLocaleString()}</td><td class="unit">${Number(x.totalQuantity||0).toLocaleString()}</td><td>${escapeHtml(x.note||"")}</td><td class="actions"><button class="action-btn" onclick="viewDistribution('${x.id}')"><i class="fa-solid fa-eye"></i> មើល</button><button class="action-btn" onclick="printDistribution('${x.id}')"><i class="fa-solid fa-print"></i> Print</button><button class="action-btn delete" onclick="deleteDistribution('${x.id}')"><i class="fa-solid fa-trash"></i> លុប</button></td></tr>`).join("")}</tbody></table></div>${buildPagerHtml("distributions", pg)}`;
+    c.innerHTML = `<div class="stockout-summary"><div class="stockout-summary-card"><small>ការចែកចាយសរុប</small><strong>${list.length.toLocaleString()}</strong></div><div class="stockout-summary-card"><small>ចំនួនយកចេញសរុប</small><strong>${totalAll.toLocaleString()}</strong></div><div class="stockout-summary-card"><small>បង្ហាញ</small><strong>${rows.length.toLocaleString()}</strong></div></div><div class="data-table-wrap"><table><thead><tr><th>N°</th><th>ថ្ងៃចែកចាយ</th><th>ចំនួនប្រភេទ Brochure</th><th>ចំនួនថង់</th><th>សរុបយកចេញ</th><th>ចំណាំ</th><th>សកម្មភាព</th></tr></thead><tbody>${rows.map((x,i) => `<tr><td>${pg.start+i+1}</td><td>${escapeHtml(formatDateDisplay(x.date))}</td><td>${(x.items||[]).length.toLocaleString()}</td><td>${Number(x.bagCount||0).toLocaleString()}</td><td class="unit">${Number(x.totalQuantity||0).toLocaleString()}</td><td>${escapeHtml(x.note||"")}</td><td class="actions"><button class="action-btn" onclick="viewDistribution('${x.id}')"><i class="fa-solid fa-eye"></i> មើល</button><button class="action-btn" onclick="editDistribution('${x.id}')"><i class="fa-solid fa-pen"></i> កែ</button><button class="action-btn" onclick="printDistribution('${x.id}')"><i class="fa-solid fa-print"></i> Print</button><button class="action-btn delete" onclick="deleteDistribution('${x.id}')"><i class="fa-solid fa-trash"></i> លុប</button></td></tr>`).join("")}</tbody></table></div>${buildPagerHtml("distributions", pg)}`;
 }
 
 function viewDistribution(id){
@@ -4549,17 +4620,17 @@ function updateCharts(){
         getYearData();
 
 
-    const ctx1 =
+    const yearCanvas =
         document
         .getElementById("yearChart");
 
 
-    const ctx2 =
+    const pieCanvas =
         document
         .getElementById("pieChart");
 
 
-    if(!ctx1 || !ctx2)
+    if(!yearCanvas || !pieCanvas)
         return;
 
 
@@ -4582,9 +4653,25 @@ function updateCharts(){
         ? "#DDEAE2"
         : "#26323D";
 
+    const softTextColor = isDark ? "#9A9DB8" : "#6B6F80";
+    const gridColor = isDark ? "rgba(255,255,255,.07)" : "rgba(27,29,42,.06)";
+    const tooltipBg = isDark ? "#242640" : "#1B1D2A";
+    const khmerFont = "'Kantumruy Pro', sans-serif";
+
+    // ===== BAR CHART (gradient fill + rounded bars) =====
+    const barCtx = yearCanvas.getContext("2d");
+    const barHeight = yearCanvas.height || 300;
+
+    const barGradient = barCtx.createLinearGradient(0, 0, 0, barHeight);
+    barGradient.addColorStop(0, "#5561E8");
+    barGradient.addColorStop(1, "#2A35A0");
+
+    const barHoverGradient = barCtx.createLinearGradient(0, 0, 0, barHeight);
+    barHoverGradient.addColorStop(0, "#F6CB86");
+    barHoverGradient.addColorStop(1, "#E8A23D");
 
     yearChart =
-        new Chart(ctx1, {
+        new Chart(barCtx, {
 
             type:"bar",
 
@@ -4598,10 +4685,21 @@ function updateCharts(){
 
                     data:data.values,
 
-                    borderRadius:7,
+                    borderRadius:10,
+
+                    borderSkipped:false,
+
+                    maxBarThickness:46,
+
+                    barPercentage:0.6,
+
+                    categoryPercentage:0.7,
 
                     backgroundColor:
-                        "#2F6D4C"
+                        barGradient,
+
+                    hoverBackgroundColor:
+                        barHoverGradient
 
                 }]
 
@@ -4613,10 +4711,34 @@ function updateCharts(){
 
                 maintainAspectRatio:false,
 
+                animation:{
+                    duration:900,
+                    easing:"easeOutQuart"
+                },
+
+                interaction:{
+                    mode:"index",
+                    intersect:false
+                },
+
                 plugins:{
 
                     legend:{
                         display:false
+                    },
+
+                    tooltip:{
+                        backgroundColor:tooltipBg,
+                        titleFont:{family:khmerFont, weight:"600"},
+                        bodyFont:{family:khmerFont},
+                        titleColor:"#fff",
+                        bodyColor:"#fff",
+                        padding:10,
+                        cornerRadius:8,
+                        displayColors:false,
+                        callbacks:{
+                            label:(ctx)=>` ${Number(ctx.parsed.y||0).toLocaleString()} ក្បាល`
+                        }
                     }
 
                 },
@@ -4626,7 +4748,8 @@ function updateCharts(){
                     x:{
 
                         ticks:{
-                            color:textColor
+                            color:textColor,
+                            font:{family:khmerFont, weight:"600"}
                         },
 
                         grid:{
@@ -4638,10 +4761,17 @@ function updateCharts(){
                     y:{
 
                         ticks:{
-                            color:textColor
+                            color:textColor,
+                            font:{family:khmerFont},
+                            callback:(v)=>Number(v).toLocaleString()
                         },
 
-                        beginAtZero:true
+                        beginAtZero:true,
+
+                        grid:{
+                            color:gridColor,
+                            drawBorder:false
+                        }
 
                     }
 
@@ -4652,8 +4782,22 @@ function updateCharts(){
         });
 
 
+    // ===== DOUGHNUT CHART (theme palette + center total label) =====
+    const pieColors = [
+        "#3D4EDB",
+        "#E8A23D",
+        "#3FCB86",
+        "#D64545",
+        "#8B5CF6",
+        "#22B8CF",
+        "#F28E2B"
+    ];
+
+    const totalUnits = data.values.reduce((a,b)=>a+Number(b||0), 0);
+    const pieCtx = pieCanvas.getContext("2d");
+
     pieChart =
-        new Chart(ctx2, {
+        new Chart(pieCtx, {
 
             type:"doughnut",
 
@@ -4665,19 +4809,17 @@ function updateCharts(){
 
                     data:data.values,
 
-                    backgroundColor:[
+                    backgroundColor:
+                        pieColors,
 
-                        "#2F6D4C",
-                        "#C89B3C",
-                        "#8B3A3A",
-                        "#4E79A7",
-                        "#59A14F",
-                        "#F28E2B",
-                        "#B07AA1"
+                    borderColor:
+                        isDark ? "#1C1E2E" : "#FFFFFF",
 
-                    ],
+                    borderWidth:3,
 
-                    borderWidth:2
+                    hoverOffset:10,
+
+                    spacing:2
 
                 }]
 
@@ -4689,6 +4831,13 @@ function updateCharts(){
 
                 maintainAspectRatio:false,
 
+                cutout:"68%",
+
+                animation:{
+                    duration:900,
+                    easing:"easeOutQuart"
+                },
+
                 plugins:{
 
                     legend:{
@@ -4696,14 +4845,51 @@ function updateCharts(){
                         position:"bottom",
 
                         labels:{
-                            color:textColor
+                            color:textColor,
+                            usePointStyle:true,
+                            pointStyle:"circle",
+                            padding:14,
+                            font:{family:khmerFont, size:11}
                         }
 
+                    },
+
+                    tooltip:{
+                        backgroundColor:tooltipBg,
+                        titleFont:{family:khmerFont, weight:"600"},
+                        bodyFont:{family:khmerFont},
+                        titleColor:"#fff",
+                        bodyColor:"#fff",
+                        padding:10,
+                        cornerRadius:8,
+                        callbacks:{
+                            label:(ctx)=>` ${ctx.label}: ${Number(ctx.parsed||0).toLocaleString()} ក្បាល`
+                        }
                     }
 
                 }
 
-            }
+            },
+
+            plugins:[{
+                id:"centerTotalLabel",
+                beforeDraw(chart){
+                    const {ctx, chartArea} = chart;
+                    if(!chartArea) return;
+                    const cx = (chartArea.left + chartArea.right) / 2;
+                    const cy = (chartArea.top + chartArea.bottom) / 2;
+                    ctx.save();
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "middle";
+                    ctx.fillStyle = textColor;
+                    ctx.font = `700 20px ${khmerFont}`;
+                    ctx.fillText(totalUnits.toLocaleString(), cx, cy - 8);
+                    ctx.font = `500 11px ${khmerFont}`;
+                    ctx.fillStyle = softTextColor;
+                    ctx.fillText("សរុប", cx, cy + 12);
+                    ctx.restore();
+                }
+            }]
 
         });
 
