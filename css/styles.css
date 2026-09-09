@@ -457,6 +457,22 @@ body.dark .page-title h2{
     display:flex;
     align-items:center;
     gap:10px;
+
+    position:relative;
+}
+
+.top-actions-menu{
+    display:flex;
+    align-items:center;
+    gap:10px;
+}
+
+.menu-label{
+    display:none;
+}
+
+#topMoreBtn{
+    display:none;
 }
 
 .icon-top-btn{
@@ -693,6 +709,10 @@ body.dark .stat-info h3{
 
 .stat-card:hover .stat-icon{
     transform:scale(1.12) rotate(5deg);
+}
+
+.stat-card.colorBorder-State{
+    border-left: 5px solid yellow;
 }
 
 /* =========================
@@ -2582,6 +2602,75 @@ body.dark .empty h3{
         flex-shrink:0;
     }
 
+    #topMoreBtn{
+        display:flex;
+    }
+
+    .top-actions-menu{
+        display:none;
+        position:absolute;
+        top:calc(100% + 10px);
+        right:0;
+        flex-direction:column;
+        align-items:stretch;
+        gap:6px;
+
+        min-width:220px;
+        max-width:80vw;
+
+        background:var(--card);
+        border:1px solid var(--border);
+        border-radius:14px;
+        box-shadow:0 14px 34px rgba(27,29,42,.2);
+        padding:10px;
+
+        z-index:95;
+    }
+
+    .top-actions-menu.open{
+        display:flex;
+    }
+
+    .top-actions-menu .icon-top-btn{
+        width:100%;
+        height:auto;
+        justify-content:flex-start;
+        padding:10px 12px;
+        gap:10px;
+    }
+
+    .top-actions-menu .notif-wrap,
+    .top-actions-menu .theme-color-wrap{
+        width:100%;
+    }
+
+    .top-actions-menu .notif-panel,
+    .top-actions-menu .theme-color-panel{
+        top:0;
+        right:calc(100% + 10px);
+        left:auto;
+    }
+
+    .top-actions-menu .menu-label{
+        display:inline;
+        font-size:13px;
+    }
+
+    .top-actions-menu .lang-toggle-btn{
+        width:100%;
+    }
+
+    .top-actions-menu .notif-badge{
+        position:static;
+        border:none;
+        margin-left:auto;
+    }
+
+    .top-actions-menu .user-chip{
+        width:100%;
+        max-width:none;
+    }
+
     .icon-top-btn{
         width:38px;
         height:38px;
@@ -2928,8 +3017,8 @@ body.dark .empty h3{
         font-size:15px;
     }
 
-    .user-chip{
-        display:none;
+    .top-actions-menu .user-chip{
+        display:flex;
     }
 
     .topbar{
