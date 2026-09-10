@@ -535,15 +535,18 @@ function setTablePage(table, page){
     else if(table === "distributions") renderDistributions();
 }
 
+const PAGE_SIZE_ALL = 999999;
+
 function setTablePageSize(table, size){
     const st = tableState[table];
     if(!st) return;
-    st.pageSize = Number(size) || 20;
+    st.pageSize = size === "all" ? PAGE_SIZE_ALL : (Number(size) || 20);
     st.page = 1;
     if(table === "stock") renderStock();
     else if(table === "stockOut") renderStockOut();
     else if(table === "stockIn") renderStockIn();
     else if(table === "stockOutRequests") renderStockOutRequests();
+    else if(table === "distributions") renderDistributions();
 }
 
 function buildPagerHtml(table, pg){
@@ -570,7 +573,8 @@ function buildPagerHtml(table, pg){
             </div>
             <div class="pager-controls">
                 <select onchange="setTablePageSize('${table}', this.value)">
-                    ${[10,20,25,50,100].map(n => `<option value="${n}" ${st.pageSize === n ? "selected" : ""}>${n} / ទំព័រ</option>`).join("")}
+                    ${[10,20,25,50,100,200,500].map(n => `<option value="${n}" ${st.pageSize === n ? "selected" : ""}>${n} / ទំព័រ</option>`).join("")}
+                    <option value="all" ${st.pageSize === PAGE_SIZE_ALL ? "selected" : ""}>ទាំងអស់</option>
                 </select>
                 ${buttons}
             </div>
