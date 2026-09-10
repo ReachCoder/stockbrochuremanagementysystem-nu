@@ -633,6 +633,10 @@ function goPage(page){
         document.getElementById("sidebarBackdrop")?.classList.remove("show");
     }
 
+    if(typeof setTopActionsOpen === "function"){
+        setTopActionsOpen(false);
+    }
+
     if(page === "dashboard"){
         updateDashboard();
     }
@@ -714,15 +718,27 @@ document.getElementById("sidebarBackdrop")?.addEventListener("click", () => {
 
 /* ម៉ឺនុយបន្ថែម (Admin chip / ចាកចេញ / ជូនដំណឹង / ភាសា / ពណ៌ / Dark Mode)
    ត្រូវលាក់ចូលទៅក្នុងម៉ឺនុយ (⋮) នៅពេលអេក្រង់តូច ដើម្បីកុំឲ្យ topbar កកកុញ */
+function setTopActionsOpen(open){
+    const menu = document.getElementById("topActionsMenu");
+    const back = document.getElementById("topActionsBackdrop");
+    if(!menu) return;
+    menu.classList.toggle("open", !!open);
+    back?.classList.toggle("show", !!open);
+}
+
 document.getElementById("topMoreBtn")?.addEventListener("click", e => {
     e.stopPropagation();
-    document.getElementById("topActionsMenu")?.classList.toggle("open");
+    const menu = document.getElementById("topActionsMenu");
+    setTopActionsOpen(!menu?.classList.contains("open"));
+});
+document.getElementById("topActionsBackdrop")?.addEventListener("click", () => {
+    setTopActionsOpen(false);
 });
 document.addEventListener("click", e => {
     const menu = document.getElementById("topActionsMenu");
     const btn = document.getElementById("topMoreBtn");
     if(menu && menu.classList.contains("open") && !menu.contains(e.target) && !btn?.contains(e.target)){
-        menu.classList.remove("open");
+        setTopActionsOpen(false);
     }
 });
 
