@@ -459,7 +459,7 @@ let lowStockNotifyBusy = false;
 
 /* Sort + Pagination state */
 const tableState = {
-    stock:    { sortKey: "name", sortDir: "asc",  page: 1, pageSize: 25 },
+    stock:    { sortKey: "year", sortDir: "desc", page: 1, pageSize: 25 },
     stockOut: { sortKey: "date", sortDir: "desc", page: 1, pageSize: 20 },
     stockIn:  { sortKey: "date", sortDir: "desc", page: 1, pageSize: 20 },
     stockOutRequests: { sortKey: "requestedAt", sortDir: "desc", page: 1, pageSize: 20 },
